@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-    base: process.env.NODE_ENV === 'production' ? '/myGames/shooting/' : '/',
+    base: process.env.NODE_ENV === 'production' ? '/myGames/' : '/',
     build: {
         outDir: 'dist',
         assetsDir: 'assets',
