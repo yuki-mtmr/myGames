@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp:*)",
+      "Bash(cat:*)",
+      "Bash(npx --version:*)",
+      "Bash(uvx:*)",
+      "Bash(node --version:*)",
+      "Bash(npx:*)",
+      "Bash(timeout 10 uvx:*)",
+      "Bash(gtimeout:*)",
+      "Bash(npm search:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:oraios.github.io)",
+      "Bash(npm view:*)",
+      "mcp__serena__list_dir",
+      "mcp__serena__find_file",
+      "Bash(python3:*)",
+      "WebFetch(domain:zenn.dev)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
