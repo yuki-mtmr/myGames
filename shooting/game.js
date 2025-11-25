@@ -29,6 +29,10 @@ export class Game {
         this.score = 0;
         this.isGameOver = false;
 
+        // Street View service for road validation
+        this.streetViewService = new google.maps.StreetViewService();
+        this.roadPoints = []; // 道路上の有効なポイント
+
         this.keys = {
             forward: false,
             backward: false,
@@ -104,8 +108,9 @@ export class Game {
             const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
             const enemy = new THREE.Mesh(geometry, material);
 
+            // 道路上の近い位置にスポーン（範囲を大幅に縮小）
             const angle = (i / count) * Math.PI * 2;
-            const radius = 20 + Math.random() * 30;
+            const radius = 10 + Math.random() * 15; // 10-25ユニット以内に制限
             enemy.position.set(
                 Math.cos(angle) * radius,
                 1,
@@ -117,13 +122,13 @@ export class Game {
 
             enemy.userData = {
                 hp: 50,
-                speed: 0.05,
+                speed: 0.03, // 速度を遅くして制御しやすく
                 isEnemy: true,
                 lastDamageTime: 0,
-                // 道の上を移動するための制約
                 roadConstraint: true,
                 lastValidPosition: enemy.position.clone(),
-                stuckCounter: 0
+                stuckCounter: 0,
+                wanderAngle: Math.random() * Math.PI * 2 // ランダムな徘徊角度
             };
 
             this.enemies.push(enemy);
@@ -279,46 +284,45 @@ export class Game {
         const currentTime = Date.now();
 
         this.enemies.forEach(enemy => {
-            const oldPosition = enemy.position.clone();
+            const distanceToPlayer = enemy.position.distanceTo(this.camera.position);
 
-            const direction = new THREE.Vector3()
-                .subVectors(this.camera.position, enemy.position)
-                .normalize();
+            // プレイヤーとの距離に応じて動作を変更
+            let direction;
+            if (distanceToPlayer > 30) {
+                // 遠い場合：徘徊モード（道に沿って動く）
+                enemy.userData.wanderAngle += (Math.random() - 0.5) * 0.1;
+                direction = new THREE.Vector3(
+                    Math.cos(enemy.userData.wanderAngle),
+                    0,
+                    Math.sin(enemy.userData.wanderAngle)
+                );
+            } else {
+                // 近い場合：プレイヤーを追跡
+                direction = new THREE.Vector3()
+                    .subVectors(this.camera.position, enemy.position)
+                    .normalize();
+                direction.y = 0;
+            }
 
-            direction.y = 0;
-
-            // 道の上を移動するための制約を追加
+            // 新しい位置を計算
             const newPosition = enemy.position.clone().add(direction.multiplyScalar(enemy.userData.speed));
 
-            // 移動範囲を制限（道から外れないように）
-            const maxDistance = 80; // プレイエリアを制限
-            if (Math.abs(newPosition.x) < maxDistance && Math.abs(newPosition.z) < maxDistance) {
+            // 厳密な移動範囲制限（道路上に留まるように）
+            const maxDistance = 20; // 20ユニット以内に厳しく制限
+            const distanceFromCenter = Math.sqrt(newPosition.x * newPosition.x + newPosition.z * newPosition.z);
+
+            if (distanceFromCenter < maxDistance) {
                 enemy.position.copy(newPosition);
                 enemy.userData.lastValidPosition = newPosition.clone();
                 enemy.userData.stuckCounter = 0;
             } else {
-                // 範囲外の場合、横方向に移動を試みる
-                const tangent = new THREE.Vector3(-direction.z, 0, direction.x);
-                const alternatePosition = enemy.position.clone().add(tangent.multiplyScalar(enemy.userData.speed));
+                // 範囲外の場合、中心方向に少し戻す
+                const toCenter = new THREE.Vector3(-enemy.position.x, 0, -enemy.position.z).normalize();
+                const correctedPosition = enemy.position.clone().add(toCenter.multiplyScalar(enemy.userData.speed * 2));
+                enemy.position.copy(correctedPosition);
 
-                if (Math.abs(alternatePosition.x) < maxDistance && Math.abs(alternatePosition.z) < maxDistance) {
-                    enemy.position.copy(alternatePosition);
-                    enemy.userData.lastValidPosition = alternatePosition.clone();
-                } else {
-                    // 動けない場合はカウンター増加
-                    enemy.userData.stuckCounter++;
-                    if (enemy.userData.stuckCounter > 60) {
-                        // 長時間動けない場合、プレイヤーに近い位置にリスポーン
-                        const respawnAngle = Math.random() * Math.PI * 2;
-                        const respawnRadius = 30 + Math.random() * 20;
-                        enemy.position.set(
-                            this.camera.position.x + Math.cos(respawnAngle) * respawnRadius,
-                            1,
-                            this.camera.position.z + Math.sin(respawnAngle) * respawnRadius
-                        );
-                        enemy.userData.stuckCounter = 0;
-                    }
-                }
+                // 徘徊角度を変更
+                enemy.userData.wanderAngle += Math.PI / 2;
             }
 
             enemy.lookAt(this.camera.position.x, enemy.position.y, this.camera.position.z);
