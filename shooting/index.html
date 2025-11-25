@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,10 +17,29 @@
             font-family: Arial, sans-serif;
         }
 
+        #street-view {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
+
         #game-container {
             width: 100vw;
             height: 100vh;
             position: relative;
+            z-index: 1;
+            pointer-events: none;
+            /* Let clicks pass through to Street View if needed, but we capture them for game */
+        }
+
+        /* Re-enable pointer events for UI elements */
+        #ui,
+        #game-over,
+        #instructions {
+            pointer-events: auto;
         }
 
         #ui {
@@ -114,7 +134,9 @@
         }
     </style>
 </head>
+
 <body>
+    <div id="street-view"></div>
     <div id="game-container">
         <div id="ui">
             <div>HP: <span id="hp">100</span></div>
@@ -133,14 +155,8 @@
         </div>
     </div>
 
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-        }
-    }
-    </script>
-    <script type="module" src="game.js"></script>
+    <!-- Main Entry Point -->
+    <script type="module" src="/main.js"></script>
 </body>
+
 </html>

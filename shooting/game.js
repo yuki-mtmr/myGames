@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 
-class Game {
+export class Game {
     constructor() {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.shadowMap.enabled = true;
@@ -46,8 +46,21 @@ class Game {
     }
 
     init() {
-        this.scene.background = new THREE.Color(0x87CEEB);
-        this.scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+        // Street View setup
+        const panorama = new google.maps.StreetViewPanorama(
+            document.getElementById('street-view'),
+            {
+                position: { lat: 35.463708, lng: 139.512965 },
+                pov: {
+                    heading: 0,
+                    pitch: 0
+                },
+                zoom: 0,
+                disableDefaultUI: true,
+                showRoadLabels: false
+            }
+        );
+        this.panorama = panorama;
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(ambientLight);
@@ -64,9 +77,8 @@ class Game {
         this.scene.add(directionalLight);
 
         const groundGeometry = new THREE.PlaneGeometry(200, 200);
-        const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x4a7c4e,
-            roughness: 0.8
+        const groundMaterial = new THREE.ShadowMaterial({
+            opacity: 0.5 // Adjust if you want to see shadows more/less clearly
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
@@ -74,23 +86,7 @@ class Game {
         this.scene.add(ground);
         this.ground = ground;
 
-        for (let i = 0; i < 20; i++) {
-            const size = Math.random() * 3 + 1;
-            const geometry = new THREE.BoxGeometry(size, size * 2, size);
-            const material = new THREE.MeshStandardMaterial({
-                color: Math.random() * 0xffffff,
-                roughness: 0.7
-            });
-            const obstacle = new THREE.Mesh(geometry, material);
-            obstacle.position.set(
-                (Math.random() - 0.5) * 180,
-                size,
-                (Math.random() - 0.5) * 180
-            );
-            obstacle.castShadow = true;
-            obstacle.receiveShadow = true;
-            this.scene.add(obstacle);
-        }
+        // Obstacles removed for Street View integration
 
         this.camera.position.y = this.player.height;
         this.camera.position.z = 5;
@@ -146,7 +142,7 @@ class Game {
         });
 
         document.addEventListener('keydown', (e) => {
-            switch(e.code) {
+            switch (e.code) {
                 case 'KeyW': this.keys.forward = true; break;
                 case 'KeyS': this.keys.backward = true; break;
                 case 'KeyA': this.keys.left = true; break;
@@ -162,7 +158,7 @@ class Game {
         });
 
         document.addEventListener('keyup', (e) => {
-            switch(e.code) {
+            switch (e.code) {
                 case 'KeyW': this.keys.forward = false; break;
                 case 'KeyS': this.keys.backward = false; break;
                 case 'KeyA': this.keys.left = false; break;
@@ -246,6 +242,28 @@ class Game {
         }
         if (Math.abs(this.camera.position.z) > maxDistance) {
             this.camera.position.z = Math.sign(this.camera.position.z) * maxDistance;
+        }
+
+        // Sync Street View POV
+        if (this.panorama) {
+            const direction = new THREE.Vector3();
+            this.camera.getWorldDirection(direction);
+
+            // Convert direction vector to heading and pitch
+            // Heading: angle in degrees clockwise from North (0)
+            // Three.js: -Z is forward (North), +X is right (East)
+            // atan2(x, z) gives angle from +Z axis (South)
+            // We need to adjust to match Google Maps heading
+
+            let heading = THREE.MathUtils.radToDeg(Math.atan2(-direction.x, -direction.z));
+            if (heading < 0) heading += 360;
+
+            const pitch = THREE.MathUtils.radToDeg(Math.asin(direction.y));
+
+            this.panorama.setPov({
+                heading: heading,
+                pitch: pitch
+            });
         }
     }
 
@@ -344,4 +362,4 @@ class Game {
     }
 }
 
-new Game();
+
