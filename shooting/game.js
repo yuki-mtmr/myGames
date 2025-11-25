@@ -103,18 +103,33 @@ export class Game {
     }
 
     spawnEnemies(count) {
+        // 道路に沿った特定のパス（直線的な道路を想定）
+        const roadPaths = [
+            { x: 0, z: 0 },      // 中心
+            { x: 5, z: 0 },      // 東
+            { x: -5, z: 0 },     // 西
+            { x: 0, z: 5 },      // 北
+            { x: 0, z: -5 },     // 南
+            { x: 3, z: 3 },      // 北東
+            { x: -3, z: 3 },     // 北西
+            { x: 3, z: -3 },     // 南東
+            { x: -3, z: -3 },    // 南西
+        ];
+
         for (let i = 0; i < count; i++) {
             const geometry = new THREE.BoxGeometry(1, 2, 1);
             const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
             const enemy = new THREE.Mesh(geometry, material);
 
-            // 道路上の近い位置にスポーン（範囲を大幅に縮小）
-            const angle = (i / count) * Math.PI * 2;
-            const radius = 10 + Math.random() * 15; // 10-25ユニット以内に制限
+            // 道路パス上の位置を選択
+            const pathIndex = i % roadPaths.length;
+            const roadPoint = roadPaths[pathIndex];
+
+            // 道路パス上にスポーン（わずかなランダム性を追加）
             enemy.position.set(
-                Math.cos(angle) * radius,
+                roadPoint.x + (Math.random() - 0.5) * 2,
                 1,
-                Math.sin(angle) * radius
+                roadPoint.z + (Math.random() - 0.5) * 2
             );
 
             enemy.castShadow = true;
@@ -122,13 +137,13 @@ export class Game {
 
             enemy.userData = {
                 hp: 50,
-                speed: 0.03, // 速度を遅くして制御しやすく
+                speed: 0.02, // さらに遅く
                 isEnemy: true,
                 lastDamageTime: 0,
                 roadConstraint: true,
-                lastValidPosition: enemy.position.clone(),
-                stuckCounter: 0,
-                wanderAngle: Math.random() * Math.PI * 2 // ランダムな徘徊角度
+                spawnPoint: enemy.position.clone(), // スポーン位置を記憶
+                maxWanderDistance: 5, // スポーン位置から5ユニット以内のみ
+                wanderAngle: Math.random() * Math.PI * 2
             };
 
             this.enemies.push(enemy);
@@ -288,9 +303,9 @@ export class Game {
 
             // プレイヤーとの距離に応じて動作を変更
             let direction;
-            if (distanceToPlayer > 30) {
-                // 遠い場合：徘徊モード（道に沿って動く）
-                enemy.userData.wanderAngle += (Math.random() - 0.5) * 0.1;
+            if (distanceToPlayer > 15) {
+                // 遠い場合：徘徊モード（スポーン位置周辺を動く）
+                enemy.userData.wanderAngle += (Math.random() - 0.5) * 0.2;
                 direction = new THREE.Vector3(
                     Math.cos(enemy.userData.wanderAngle),
                     0,
@@ -307,19 +322,18 @@ export class Game {
             // 新しい位置を計算
             const newPosition = enemy.position.clone().add(direction.multiplyScalar(enemy.userData.speed));
 
-            // 厳密な移動範囲制限（道路上に留まるように）
-            const maxDistance = 20; // 20ユニット以内に厳しく制限
-            const distanceFromCenter = Math.sqrt(newPosition.x * newPosition.x + newPosition.z * newPosition.z);
+            // スポーン位置からの距離を計算
+            const distanceFromSpawn = newPosition.distanceTo(enemy.userData.spawnPoint);
 
-            if (distanceFromCenter < maxDistance) {
+            // スポーン位置から一定距離内のみ移動可能
+            if (distanceFromSpawn < enemy.userData.maxWanderDistance) {
                 enemy.position.copy(newPosition);
-                enemy.userData.lastValidPosition = newPosition.clone();
-                enemy.userData.stuckCounter = 0;
             } else {
-                // 範囲外の場合、中心方向に少し戻す
-                const toCenter = new THREE.Vector3(-enemy.position.x, 0, -enemy.position.z).normalize();
-                const correctedPosition = enemy.position.clone().add(toCenter.multiplyScalar(enemy.userData.speed * 2));
-                enemy.position.copy(correctedPosition);
+                // 範囲外の場合、スポーン位置方向に引き戻す
+                const toSpawn = new THREE.Vector3()
+                    .subVectors(enemy.userData.spawnPoint, enemy.position)
+                    .normalize();
+                enemy.position.add(toSpawn.multiplyScalar(enemy.userData.speed * 2));
 
                 // 徘徊角度を変更
                 enemy.userData.wanderAngle += Math.PI / 2;
