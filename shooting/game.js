@@ -103,33 +103,21 @@ export class Game {
     }
 
     spawnEnemies(count) {
-        // 道路に沿った特定のパス（直線的な道路を想定）
-        const roadPaths = [
-            { x: 0, z: 0 },      // 中心
-            { x: 5, z: 0 },      // 東
-            { x: -5, z: 0 },     // 西
-            { x: 0, z: 5 },      // 北
-            { x: 0, z: -5 },     // 南
-            { x: 3, z: 3 },      // 北東
-            { x: -3, z: 3 },     // 北西
-            { x: 3, z: -3 },     // 南東
-            { x: -3, z: -3 },    // 南西
-        ];
-
+        // プレイヤーの前方の道路上に敵を配置
+        // Street Viewの道路は通常、プレイヤーの視線方向に沿っている
         for (let i = 0; i < count; i++) {
             const geometry = new THREE.BoxGeometry(1, 2, 1);
             const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
             const enemy = new THREE.Mesh(geometry, material);
 
-            // 道路パス上の位置を選択
-            const pathIndex = i % roadPaths.length;
-            const roadPoint = roadPaths[pathIndex];
+            // プレイヤーの前方に配置（道路に沿って）
+            const distance = 15 + i * 8; // 15, 23, 31, 39, 47ユニット前方
+            const lateralOffset = (Math.random() - 0.5) * 4; // 道路の幅内でランダム
 
-            // 道路パス上にスポーン（わずかなランダム性を追加）
             enemy.position.set(
-                roadPoint.x + (Math.random() - 0.5) * 2,
+                lateralOffset,
                 1,
-                roadPoint.z + (Math.random() - 0.5) * 2
+                -distance // Z軸負方向（前方）
             );
 
             enemy.castShadow = true;
@@ -137,12 +125,12 @@ export class Game {
 
             enemy.userData = {
                 hp: 50,
-                speed: 0.02, // さらに遅く
+                speed: 0.03,
                 isEnemy: true,
                 lastDamageTime: 0,
                 roadConstraint: true,
-                spawnPoint: enemy.position.clone(), // スポーン位置を記憶
-                maxWanderDistance: 5, // スポーン位置から5ユニット以内のみ
+                spawnPoint: enemy.position.clone(),
+                maxWanderDistance: 3, // 道路幅内に制限
                 wanderAngle: Math.random() * Math.PI * 2
             };
 
@@ -153,17 +141,23 @@ export class Game {
     }
 
     setupEventListeners() {
-        this.renderer.domElement.addEventListener('click', () => {
-            if (!this.controls.isLocked && !this.isGameOver) {
+        // クリックでPointerLockを有効化
+        const lockPointer = () => {
+            if (!this.isGameOver) {
                 this.controls.lock();
             }
-        });
+        };
+
+        this.renderer.domElement.addEventListener('click', lockPointer);
+        document.getElementById('game-container').addEventListener('click', lockPointer);
 
         this.controls.addEventListener('lock', () => {
+            console.log('Pointer locked');
             document.getElementById('instructions').style.display = 'none';
         });
 
         this.controls.addEventListener('unlock', () => {
+            console.log('Pointer unlocked');
             if (!this.isGameOver) {
                 document.getElementById('instructions').style.display = 'block';
             }
