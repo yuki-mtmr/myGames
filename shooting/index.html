@@ -24,7 +24,8 @@
             width: 100vw;
             height: 100vh;
             z-index: 0;
-            pointer-events: none;
+            pointer-events: auto;
+            /* Enable interaction */
         }
 
         #game-container {
@@ -32,11 +33,13 @@
             height: 100vh;
             position: relative;
             z-index: 1;
-            pointer-events: auto;
+            pointer-events: none;
+            /* Let clicks pass through container */
         }
 
         #game-container canvas {
-            pointer-events: auto;
+            pointer-events: none;
+            /* Let clicks pass through canvas */
         }
 
         /* Re-enable pointer events for UI elements */
@@ -146,7 +149,6 @@
             <div>HP: <span id="hp">100</span></div>
             <div>Score: <span id="score">0</span></div>
             <div>Enemies: <span id="enemies">0</span></div>
-            <div>On Ground: <span id="onGround">true</span></div>
         </div>
         <div id="crosshair"></div>
         <div id="game-over">
@@ -155,7 +157,7 @@
             <button onclick="location.reload()">Restart</button>
         </div>
         <div id="instructions">
-            <p>WASD: 移動 | マウス: 視点 | クリック: 攻撃 | スペース: ジャンプ</p>
+            <p>マウスドラッグ: 視点移動 | 地面クリック: 移動 | スペース: 攻撃</p>
         </div>
     </div>
 

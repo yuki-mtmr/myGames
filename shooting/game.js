@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+
 
 export class Game {
     constructor() {
@@ -12,7 +12,7 @@ export class Game {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.getElementById('game-container').appendChild(this.renderer.domElement);
 
-        this.controls = new PointerLockControls(this.camera, this.renderer.domElement);
+
 
         this.player = {
             height: 2,
@@ -33,16 +33,16 @@ export class Game {
         this.streetViewService = new google.maps.StreetViewService();
         this.roadPoints = []; // 道路上の有効なポイント
 
-        this.keys = {
-            forward: false,
-            backward: false,
-            left: false,
-            right: false,
-            space: false
-        };
+
 
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
+
+        this.textureLoader = new THREE.TextureLoader();
+        this.enemyTexture = this.textureLoader.load('/enemy.png');
+        this.enemyTexture.magFilter = THREE.NearestFilter;
+        this.enemyTexture.minFilter = THREE.NearestFilter;
+        this.enemyTexture.colorSpace = THREE.SRGBColorSpace;
 
         this.init();
         this.setupEventListeners();
@@ -60,15 +60,38 @@ export class Game {
                     pitch: 0
                 },
                 zoom: 0,
-                disableDefaultUI: true,
-                showRoadLabels: false,
-                clickToGo: false,
-                linksControl: false,
+                disableDefaultUI: false,
+                showRoadLabels: true,
+                clickToGo: true,
+                linksControl: true,
                 panControl: false,
-                enableCloseButton: false
+                enableCloseButton: false,
+                motionTracking: false,
+                motionTrackingControl: false
             }
         );
         this.panorama = panorama;
+
+        // Sync Three.js camera to Street View
+        this.panorama.addListener('pov_changed', () => {
+            const pov = this.panorama.getPov();
+            const headingRad = THREE.MathUtils.degToRad(pov.heading);
+            const pitchRad = THREE.MathUtils.degToRad(pov.pitch);
+            this.camera.rotation.set(pitchRad, -headingRad, 0, 'YXZ');
+        });
+
+        // パノラマのリンク（道路のつながり）が変更されたら敵を再配置
+        this.panorama.addListener('links_changed', () => {
+            const links = this.panorama.getLinks();
+            if (links && links.length > 0) {
+                // 既存の敵を削除
+                this.enemies.forEach(enemy => this.scene.remove(enemy));
+                this.enemies = [];
+
+                // 道路情報に基づいて敵をスポーン
+                this.spawnEnemiesOnRoad(links, 5);
+            }
+        });
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(ambientLight);
@@ -76,18 +99,11 @@ export class Game {
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(50, 50, 50);
         directionalLight.castShadow = true;
-        directionalLight.shadow.camera.left = -50;
-        directionalLight.shadow.camera.right = 50;
-        directionalLight.shadow.camera.top = 50;
-        directionalLight.shadow.camera.bottom = -50;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
         this.scene.add(directionalLight);
 
+        // 地面（影を受けるため、透明にする）
         const groundGeometry = new THREE.PlaneGeometry(200, 200);
-        const groundMaterial = new THREE.ShadowMaterial({
-            opacity: 0.5 // Adjust if you want to see shadows more/less clearly
-        });
+        const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.5 });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
@@ -98,26 +114,45 @@ export class Game {
 
         this.camera.position.y = this.player.height;
         this.camera.position.z = 5;
-
-        this.spawnEnemies(5);
     }
 
-    spawnEnemies(count) {
-        // プレイヤーの前方の道路上に敵を配置
-        // Street Viewの道路は通常、プレイヤーの視線方向に沿っている
-        for (let i = 0; i < count; i++) {
-            const geometry = new THREE.BoxGeometry(1, 2, 1);
-            const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-            const enemy = new THREE.Mesh(geometry, material);
+    spawnEnemiesOnRoad(links, count) {
+        // リンク（道路の方向）を使って敵を配置
+        // linksには隣接するパノラマへのheading（角度）が含まれている
 
-            // プレイヤーの前方に配置（道路に沿って）
-            const distance = 15 + i * 8; // 15, 23, 31, 39, 47ユニット前方
-            const lateralOffset = (Math.random() - 0.5) * 4; // 道路の幅内でランダム
+        for (let i = 0; i < count; i++) {
+            // ランダムに道路（リンク）を選ぶ
+            const link = links[Math.floor(Math.random() * links.length)];
+            const roadHeading = link.heading; // 道路の方角（度数法）
+
+            // 度数法をラジアンに変換（Three.jsは反時計回りが正、Google Mapsは時計回りが正なので調整）
+            // Google Maps: 北=0, 東=90. Three.js: -Z方向が基準
+            // 変換: rad = (heading - 180) * Math.PI / 180 (これで-Z方向を0度とした角度になる...はずだが調整が必要)
+
+            // 単純に計算:
+            // Z = -cos(heading)
+            // X = sin(heading)
+            const rad = roadHeading * Math.PI / 180;
+            const dirX = Math.sin(rad);
+            const dirZ = -Math.cos(rad); // 北(0度)へ向かうとZはマイナス
+
+            const material = new THREE.SpriteMaterial({ map: this.enemyTexture });
+            const enemy = new THREE.Sprite(material);
+            enemy.scale.set(2, 2, 1);
+
+            // 距離をランダムに設定（10〜40メートル先）
+            const distance = 15 + Math.random() * 25;
+
+            // 道路の幅のブレ（±2メートル）
+            // 進行方向に対して垂直なベクトルを計算
+            const perpX = dirZ;
+            const perpZ = -dirX;
+            const offset = (Math.random() - 0.5) * 4;
 
             enemy.position.set(
-                lateralOffset,
+                dirX * distance + perpX * offset,
                 1,
-                -distance // Z軸負方向（前方）
+                dirZ * distance + perpZ * offset
             );
 
             enemy.castShadow = true;
@@ -130,7 +165,53 @@ export class Game {
                 lastDamageTime: 0,
                 roadConstraint: true,
                 spawnPoint: enemy.position.clone(),
-                maxWanderDistance: 3, // 道路幅内に制限
+                maxWanderDistance: 5,
+                wanderAngle: Math.random() * Math.PI * 2
+            };
+
+            this.enemies.push(enemy);
+            this.scene.add(enemy);
+        }
+        this.updateUI();
+    }
+
+    spawnEnemies(count) {
+        // プレイヤーの現在の視線方向に敵を配置
+        const direction = new THREE.Vector3();
+        this.camera.getWorldDirection(direction);
+        direction.y = 0;
+        direction.normalize();
+
+        const right = new THREE.Vector3();
+        right.crossVectors(this.camera.up, direction).normalize();
+
+        for (let i = 0; i < count; i++) {
+            const material = new THREE.SpriteMaterial({ map: this.enemyTexture });
+            const enemy = new THREE.Sprite(material);
+            enemy.scale.set(2, 2, 1);
+
+            const distance = 15 + i * 8;
+            const lateralOffset = (Math.random() - 0.5) * 4;
+
+            // カメラの前方に配置
+            const spawnPos = this.camera.position.clone()
+                .add(direction.clone().multiplyScalar(distance))
+                .add(right.clone().multiplyScalar(lateralOffset));
+
+            spawnPos.y = 1;
+            enemy.position.copy(spawnPos);
+
+            enemy.castShadow = true;
+            enemy.receiveShadow = true;
+
+            enemy.userData = {
+                hp: 50,
+                speed: 0.03,
+                isEnemy: true,
+                lastDamageTime: 0,
+                roadConstraint: true,
+                spawnPoint: enemy.position.clone(),
+                maxWanderDistance: 3,
                 wanderAngle: Math.random() * Math.PI * 2
             };
 
@@ -141,63 +222,16 @@ export class Game {
     }
 
     setupEventListeners() {
-        // クリックでPointerLockを有効化
-        const lockPointer = () => {
-            if (!this.isGameOver) {
-                this.controls.lock();
-            }
-        };
-
-        this.renderer.domElement.addEventListener('click', lockPointer);
-        document.getElementById('game-container').addEventListener('click', lockPointer);
-
-        this.controls.addEventListener('lock', () => {
-            console.log('Pointer locked');
-            document.getElementById('instructions').style.display = 'none';
-        });
-
-        this.controls.addEventListener('unlock', () => {
-            console.log('Pointer unlocked');
-            if (!this.isGameOver) {
-                document.getElementById('instructions').style.display = 'block';
-            }
-        });
-
-        document.addEventListener('keydown', (e) => {
-            switch (e.code) {
-                case 'KeyW': this.keys.forward = true; break;
-                case 'KeyS': this.keys.backward = true; break;
-                case 'KeyA': this.keys.left = true; break;
-                case 'KeyD': this.keys.right = true; break;
-                case 'Space':
-                    e.preventDefault();
-                    if (this.player.onGround) {
-                        this.player.velocity.y = this.player.jumpSpeed;
-                        this.player.onGround = false;
-                    }
-                    break;
-            }
-        });
-
-        document.addEventListener('keyup', (e) => {
-            switch (e.code) {
-                case 'KeyW': this.keys.forward = false; break;
-                case 'KeyS': this.keys.backward = false; break;
-                case 'KeyA': this.keys.left = false; break;
-                case 'KeyD': this.keys.right = false; break;
-            }
-        });
-
-        this.renderer.domElement.addEventListener('click', () => {
-            if (this.controls.isLocked && !this.isGameOver) {
-                this.shoot();
-            }
-        });
-
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                this.shoot();
+            }
         });
     }
 
@@ -222,71 +256,7 @@ export class Game {
     }
 
     updatePlayer() {
-        if (!this.controls.isLocked) return;
-
-        const direction = new THREE.Vector3();
-        this.camera.getWorldDirection(direction);
-        direction.y = 0;
-        direction.normalize();
-
-        const right = new THREE.Vector3();
-        right.crossVectors(this.camera.up, direction).normalize();
-
-        const moveVector = new THREE.Vector3();
-
-        if (this.keys.forward) {
-            moveVector.add(direction.clone().multiplyScalar(this.player.speed));
-        }
-        if (this.keys.backward) {
-            moveVector.add(direction.clone().multiplyScalar(-this.player.speed));
-        }
-        if (this.keys.left) {
-            moveVector.add(right.clone().multiplyScalar(this.player.speed));
-        }
-        if (this.keys.right) {
-            moveVector.add(right.clone().multiplyScalar(-this.player.speed));
-        }
-
-        this.camera.position.add(moveVector);
-
-        this.player.velocity.y -= 0.02;
-        this.camera.position.y += this.player.velocity.y;
-
-        if (this.camera.position.y <= this.player.height) {
-            this.camera.position.y = this.player.height;
-            this.player.velocity.y = 0;
-            this.player.onGround = true;
-        }
-
-        const maxDistance = 95;
-        if (Math.abs(this.camera.position.x) > maxDistance) {
-            this.camera.position.x = Math.sign(this.camera.position.x) * maxDistance;
-        }
-        if (Math.abs(this.camera.position.z) > maxDistance) {
-            this.camera.position.z = Math.sign(this.camera.position.z) * maxDistance;
-        }
-
-        // Sync Street View POV
-        if (this.panorama) {
-            const direction = new THREE.Vector3();
-            this.camera.getWorldDirection(direction);
-
-            // Convert direction vector to heading and pitch
-            // Heading: angle in degrees clockwise from North (0)
-            // Three.js: -Z is forward (North), +X is right (East)
-            // atan2(x, z) gives angle from +Z axis (South)
-            // We need to adjust to match Google Maps heading
-
-            let heading = THREE.MathUtils.radToDeg(Math.atan2(-direction.x, -direction.z));
-            if (heading < 0) heading += 360;
-
-            const pitch = THREE.MathUtils.radToDeg(Math.asin(direction.y));
-
-            this.panorama.setPov({
-                heading: heading,
-                pitch: pitch
-            });
-        }
+        // No physics needed for Street View navigation
     }
 
     updateEnemies() {
@@ -333,7 +303,7 @@ export class Game {
                 enemy.userData.wanderAngle += Math.PI / 2;
             }
 
-            enemy.lookAt(this.camera.position.x, enemy.position.y, this.camera.position.z);
+            // enemy.lookAt(this.camera.position.x, enemy.position.y, this.camera.position.z); // Sprite always faces camera
 
             const distance = enemy.position.distanceTo(this.camera.position);
             if (distance < 2 && currentTime - enemy.userData.lastDamageTime > 1000) {
@@ -391,12 +361,10 @@ export class Game {
         document.getElementById('hp').textContent = Math.max(0, this.player.hp);
         document.getElementById('score').textContent = this.score;
         document.getElementById('enemies').textContent = this.enemies.length;
-        document.getElementById('onGround').textContent = this.player.onGround;
     }
 
     gameOver() {
         this.isGameOver = true;
-        this.controls.unlock();
         document.getElementById('game-over').style.display = 'block';
         document.getElementById('final-score').textContent = this.score;
         document.getElementById('game-over-text').textContent = 'GAME OVER';
