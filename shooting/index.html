@@ -31,8 +31,11 @@
             height: 100vh;
             position: relative;
             z-index: 1;
-            pointer-events: none;
-            /* Let clicks pass through to Street View if needed, but we capture them for game */
+            pointer-events: auto;
+        }
+
+        #game-container canvas {
+            pointer-events: auto;
         }
 
         /* Re-enable pointer events for UI elements */
