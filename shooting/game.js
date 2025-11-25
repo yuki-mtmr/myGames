@@ -57,7 +57,11 @@ export class Game {
                 },
                 zoom: 0,
                 disableDefaultUI: true,
-                showRoadLabels: false
+                showRoadLabels: false,
+                clickToGo: false,
+                linksControl: false,
+                panControl: false,
+                enableCloseButton: false
             }
         );
         this.panorama = panorama;
@@ -115,7 +119,11 @@ export class Game {
                 hp: 50,
                 speed: 0.05,
                 isEnemy: true,
-                lastDamageTime: 0
+                lastDamageTime: 0,
+                // 道の上を移動するための制約
+                roadConstraint: true,
+                lastValidPosition: enemy.position.clone(),
+                stuckCounter: 0
             };
 
             this.enemies.push(enemy);
@@ -271,13 +279,47 @@ export class Game {
         const currentTime = Date.now();
 
         this.enemies.forEach(enemy => {
+            const oldPosition = enemy.position.clone();
+
             const direction = new THREE.Vector3()
                 .subVectors(this.camera.position, enemy.position)
                 .normalize();
 
             direction.y = 0;
 
-            enemy.position.add(direction.multiplyScalar(enemy.userData.speed));
+            // 道の上を移動するための制約を追加
+            const newPosition = enemy.position.clone().add(direction.multiplyScalar(enemy.userData.speed));
+
+            // 移動範囲を制限（道から外れないように）
+            const maxDistance = 80; // プレイエリアを制限
+            if (Math.abs(newPosition.x) < maxDistance && Math.abs(newPosition.z) < maxDistance) {
+                enemy.position.copy(newPosition);
+                enemy.userData.lastValidPosition = newPosition.clone();
+                enemy.userData.stuckCounter = 0;
+            } else {
+                // 範囲外の場合、横方向に移動を試みる
+                const tangent = new THREE.Vector3(-direction.z, 0, direction.x);
+                const alternatePosition = enemy.position.clone().add(tangent.multiplyScalar(enemy.userData.speed));
+
+                if (Math.abs(alternatePosition.x) < maxDistance && Math.abs(alternatePosition.z) < maxDistance) {
+                    enemy.position.copy(alternatePosition);
+                    enemy.userData.lastValidPosition = alternatePosition.clone();
+                } else {
+                    // 動けない場合はカウンター増加
+                    enemy.userData.stuckCounter++;
+                    if (enemy.userData.stuckCounter > 60) {
+                        // 長時間動けない場合、プレイヤーに近い位置にリスポーン
+                        const respawnAngle = Math.random() * Math.PI * 2;
+                        const respawnRadius = 30 + Math.random() * 20;
+                        enemy.position.set(
+                            this.camera.position.x + Math.cos(respawnAngle) * respawnRadius,
+                            1,
+                            this.camera.position.z + Math.sin(respawnAngle) * respawnRadius
+                        );
+                        enemy.userData.stuckCounter = 0;
+                    }
+                }
+            }
 
             enemy.lookAt(this.camera.position.x, enemy.position.y, this.camera.position.z);
 
