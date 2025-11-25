@@ -39,7 +39,8 @@ export class Game {
         this.mouse = new THREE.Vector2();
 
         this.textureLoader = new THREE.TextureLoader();
-        this.enemyTexture = this.textureLoader.load('/enemy.png');
+        const basePath = import.meta.env.BASE_URL || '/';
+        this.enemyTexture = this.textureLoader.load(`${basePath}enemy.png`);
         this.enemyTexture.magFilter = THREE.NearestFilter;
         this.enemyTexture.minFilter = THREE.NearestFilter;
         this.enemyTexture.colorSpace = THREE.SRGBColorSpace;
