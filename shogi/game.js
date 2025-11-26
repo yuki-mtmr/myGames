@@ -321,9 +321,9 @@ export class ShogiGame {
     updateMoveHistory() {
         const moveList = document.getElementById('move-list');
         moveList.innerHTML = this.moveHistory.map(move =>
-            `< div class="move-item ${move.player === 'cpu' ? 'cpu-move' : ''}" >
+            `<div class="move-item ${move.player === 'cpu' ? 'cpu-move' : ''}">
             ${move.number}. ${move.text}
-            </div > `
+            </div>`
         ).join('');
 
         // 最新の手までスクロール
