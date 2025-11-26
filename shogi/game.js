@@ -131,8 +131,8 @@ export class ShogiGame {
 
         // 持ち駒を選択している場合
         if (this.selectedCapturedPiece) {
-            // 空いているマスにのみ配置可能
-            if (!piece) {
+            // バリデーションチェック
+            if (this.canPlaceCapturedPiece(this.selectedCapturedPiece, row, col)) {
                 this.placeCapturedPiece(row, col);
                 this.selectedCapturedPiece = null;
                 this.clearHighlights();
@@ -141,6 +141,7 @@ export class ShogiGame {
                     setTimeout(() => this.cpuTurn(), 500);
                 }
             }
+            // 無効な場所をクリックした場合は何もしない（エラーメッセージなし）
             return;
         }
 
@@ -236,46 +237,52 @@ export class ShogiGame {
         });
     }
 
-    placeCapturedPiece(row, col) {
-        const pieceType = this.selectedCapturedPiece;
+    canPlaceCapturedPiece(pieceType, row, col) {
+        // 既に駒がある場所には置けない
+        if (this.board[row][col]) {
+            return false;
+        }
 
         // 二歩チェック（同じ筋に歩が既にあるか）
         if (pieceType === '歩') {
             for (let r = 0; r < 9; r++) {
                 const piece = this.board[r][col];
                 if (piece && piece.owner === 'player' && piece.type === '歩' && !piece.promoted) {
-                    alert('二歩は禁止です！');
-                    return;
+                    return false;
                 }
             }
         }
 
         // 行き所のない駒チェック
         if (pieceType === '歩' && row === 0) {
-            alert('歩は1段目に打てません！');
-            return;
+            return false;
         }
         if (pieceType === '香' && row === 0) {
-            alert('香は1段目に打てません！');
-            return;
+            return false;
         }
         if (pieceType === '桂' && (row === 0 || row === 1)) {
-            alert('桂は1・2段目に打てません！');
+            return false;
+        }
+
+        // 打ち歩詰めチェック（簡易版）
+        if (pieceType === '歩' && row > 0) {
+            const frontPiece = this.board[row - 1][col];
+            if (frontPiece && frontPiece.owner === 'cpu' && (frontPiece.type === '玉' || frontPiece.type === '王')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    placeCapturedPiece(row, col) {
+        const pieceType = this.selectedCapturedPiece;
+
+        // バリデーションチェック（無効な場合は何もしない）
+        if (!this.canPlaceCapturedPiece(pieceType, row, col)) {
             return;
         }
 
-        // 打ち歩詰めチェック（簡易版：歩を打って相手の王/玉の前に置く場合）
-        if (pieceType === '歩') {
-            // 歩を打った位置の1つ前に相手の王/玉がいるかチェック
-            if (row > 0) {
-                const frontPiece = this.board[row - 1][col];
-                if (frontPiece && frontPiece.owner === 'cpu' && (frontPiece.type === '玉' || frontPiece.type === '王')) {
-                    // 簡易的なチェック：相手の王が逃げられるかどうか
-                    alert('打ち歩詰めは禁止です！');
-                    return;
-                }
-            }
-        }
         // 持ち駒から削除
         const index = this.playerCaptured.indexOf(pieceType);
         if (index > -1) {
@@ -290,7 +297,7 @@ export class ShogiGame {
         };
 
         // 指し手を記録
-        this.recordMove(`${pieceType}打`, row, col, 'player');
+        this.recordMove(`${pieceType} 打`, row, col, 'player');
 
         this.currentPlayer = 'cpu';
         this.renderBoard();
@@ -300,11 +307,11 @@ export class ShogiGame {
     recordMove(moveText, toRow, toCol, player) {
         const colNames = ['９', '８', '７', '６', '５', '４', '３', '２', '１'];
         const rowNames = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
-        const position = `${colNames[toCol]}${rowNames[toRow]}`;
+        const position = `${colNames[toCol]}${rowNames[toRow]} `;
 
         this.moveHistory.push({
             player: player,
-            text: `${position}${moveText}`,
+            text: `${position}${moveText} `,
             number: this.moveHistory.length + 1
         });
 
@@ -314,9 +321,9 @@ export class ShogiGame {
     updateMoveHistory() {
         const moveList = document.getElementById('move-list');
         moveList.innerHTML = this.moveHistory.map(move =>
-            `<div class="move-item ${move.player === 'cpu' ? 'cpu-move' : ''}">
-                ${move.number}. ${move.text}
-            </div>`
+            `< div class="move-item ${move.player === 'cpu' ? 'cpu-move' : ''}" >
+            ${move.number}. ${move.text}
+            </div > `
         ).join('');
 
         // 最新の手までスクロール
@@ -459,8 +466,8 @@ export class ShogiGame {
         // プレイヤーの持ち駒（クリック可能）
         const playerCapturedEl = document.getElementById('player-captured');
         playerCapturedEl.innerHTML = this.playerCaptured.map((p, index) =>
-            `<div class="captured-piece ${this.selectedCapturedPiece === p && this.playerCaptured.indexOf(p) === index ? 'selected' : ''}"
-                  data-piece="${p}" data-index="${index}">${p}</div>`
+            `< div class="captured-piece ${this.selectedCapturedPiece === p && this.playerCaptured.indexOf(p) === index ? 'selected' : ''}"
+        data - piece="${p}" data - index="${index}" > ${p}</div > `
         ).join('');
 
         // 持ち駒にクリックイベントを追加
@@ -486,7 +493,7 @@ export class ShogiGame {
 
         // CPUの持ち駒（表示のみ）
         document.getElementById('cpu-captured').innerHTML =
-            this.cpuCaptured.map(p => `<div class="captured-piece">${p}</div>`).join('');
+            this.cpuCaptured.map(p => `< div class="captured-piece" > ${p}</div > `).join('');
     }
 
     endGame(winner) {
