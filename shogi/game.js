@@ -466,8 +466,8 @@ export class ShogiGame {
         // プレイヤーの持ち駒（クリック可能）
         const playerCapturedEl = document.getElementById('player-captured');
         playerCapturedEl.innerHTML = this.playerCaptured.map((p, index) =>
-            `< div class="captured-piece ${this.selectedCapturedPiece === p && this.playerCaptured.indexOf(p) === index ? 'selected' : ''}"
-        data - piece="${p}" data - index="${index}" > ${p}</div > `
+            `<div class="captured-piece ${this.selectedCapturedPiece === p && this.playerCaptured.indexOf(p) === index ? 'selected' : ''}"
+                  data-piece="${p}" data-index="${index}">${p}</div>`
         ).join('');
 
         // 持ち駒にクリックイベントを追加
