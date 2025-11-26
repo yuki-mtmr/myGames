@@ -1,3 +1,4 @@
+import './style.css';
 import { ShogiGame } from './game.js';
 
 let game = null;
