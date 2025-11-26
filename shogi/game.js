@@ -47,8 +47,10 @@ export class ShogiGame {
         this.currentPlayer = 'player'; // 'player' or 'cpu'
         this.selectedPiece = null;
         this.selectedCell = null;
+        this.selectedCapturedPiece = null; // 選択した持ち駒
         this.playerCaptured = [];
         this.cpuCaptured = [];
+        this.moveHistory = []; // 指し手履歴
         this.gameOver = false;
 
         this.renderBoard();
@@ -126,6 +128,21 @@ export class ShogiGame {
         if (this.gameOver || this.currentPlayer !== 'player') return;
 
         const piece = this.board[row][col];
+
+        // 持ち駒を選択している場合
+        if (this.selectedCapturedPiece) {
+            // 空いているマスにのみ配置可能
+            if (!piece) {
+                this.placeCapturedPiece(row, col);
+                this.selectedCapturedPiece = null;
+                this.clearHighlights();
+
+                if (!this.gameOver) {
+                    setTimeout(() => this.cpuTurn(), 500);
+                }
+            }
+            return;
+        }
 
         // 駒を選択
         if (piece && piece.owner === 'player' && !this.selectedPiece) {
@@ -219,9 +236,62 @@ export class ShogiGame {
         });
     }
 
+    placeCapturedPiece(row, col) {
+        const pieceType = this.selectedCapturedPiece;
+
+        // 持ち駒から削除
+        const index = this.playerCaptured.indexOf(pieceType);
+        if (index > -1) {
+            this.playerCaptured.splice(index, 1);
+        }
+
+        // 盤面に配置
+        this.board[row][col] = {
+            type: pieceType,
+            owner: 'player',
+            promoted: false
+        };
+
+        // 指し手を記録
+        this.recordMove(`${pieceType}打`, row, col, 'player');
+
+        this.currentPlayer = 'cpu';
+        this.renderBoard();
+        this.updateUI();
+    }
+
+    recordMove(moveText, toRow, toCol, player) {
+        const colNames = ['９', '８', '７', '６', '５', '４', '３', '２', '１'];
+        const rowNames = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+        const position = `${colNames[toCol]}${rowNames[toRow]}`;
+
+        this.moveHistory.push({
+            player: player,
+            text: `${position}${moveText}`,
+            number: this.moveHistory.length + 1
+        });
+
+        this.updateMoveHistory();
+    }
+
+    updateMoveHistory() {
+        const moveList = document.getElementById('move-list');
+        moveList.innerHTML = this.moveHistory.map(move =>
+            `<div class="move-item ${move.player === 'cpu' ? 'cpu-move' : ''}">
+                ${move.number}. ${move.text}
+            </div>`
+        ).join('');
+
+        // 最新の手までスクロール
+        moveList.scrollTop = moveList.scrollHeight;
+    }
+
     makeMove(fromRow, fromCol, toRow, toCol) {
         const piece = this.board[fromRow][fromCol];
         const capturedPiece = this.board[toRow][toCol];
+
+        // 移動する駒の名前
+        let movePieceName = piece.promoted ? piece.type.substring(1) : piece.type;
 
         // 駒を取る
         if (capturedPiece) {
@@ -255,13 +325,20 @@ export class ShogiGame {
         this.board[fromRow][fromCol] = null;
 
         // 成りの判定（簡略化：敵陣に入ったら自動的に成る）
+        let promoted = false;
         if (piece.owner === 'player' && toRow <= 2 && !piece.promoted && PIECES[piece.type].canPromote) {
             piece.promoted = true;
             piece.type = PIECES[piece.type].promoted;
+            promoted = true;
         } else if (piece.owner === 'cpu' && toRow >= 6 && !piece.promoted && PIECES[piece.type].canPromote) {
             piece.promoted = true;
             piece.type = PIECES[piece.type].promoted;
+            promoted = true;
         }
+
+        // 指し手を記録
+        const moveText = movePieceName + (promoted ? '成' : '');
+        this.recordMove(moveText, toRow, toCol, piece.owner);
 
         this.currentPlayer = this.currentPlayer === 'player' ? 'cpu' : 'player';
         this.renderBoard();
@@ -342,9 +419,35 @@ export class ShogiGame {
         document.getElementById('turn-indicator').textContent =
             this.currentPlayer === 'player' ? 'あなたの手番です' : 'CPUが考えています...';
 
-        document.getElementById('player-captured').innerHTML =
-            this.playerCaptured.map(p => `<div class="captured-piece">${p}</div>`).join('');
+        // プレイヤーの持ち駒（クリック可能）
+        const playerCapturedEl = document.getElementById('player-captured');
+        playerCapturedEl.innerHTML = this.playerCaptured.map((p, index) =>
+            `<div class="captured-piece ${this.selectedCapturedPiece === p && this.playerCaptured.indexOf(p) === index ? 'selected' : ''}"
+                  data-piece="${p}" data-index="${index}">${p}</div>`
+        ).join('');
 
+        // 持ち駒にクリックイベントを追加
+        playerCapturedEl.querySelectorAll('.captured-piece').forEach(el => {
+            el.addEventListener('click', () => {
+                if (this.currentPlayer === 'player' && !this.gameOver) {
+                    const pieceType = el.dataset.piece;
+
+                    // 既に選択されている場合は解除
+                    if (this.selectedCapturedPiece === pieceType) {
+                        this.selectedCapturedPiece = null;
+                    } else {
+                        this.selectedCapturedPiece = pieceType;
+                        this.selectedPiece = null;
+                        this.selectedCell = null;
+                        this.clearHighlights();
+                    }
+
+                    this.updateUI();
+                }
+            });
+        });
+
+        // CPUの持ち駒（表示のみ）
         document.getElementById('cpu-captured').innerHTML =
             this.cpuCaptured.map(p => `<div class="captured-piece">${p}</div>`).join('');
     }

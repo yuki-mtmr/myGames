@@ -62,6 +62,7 @@ header h1 {
         transform: translateY(-50px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
@@ -119,13 +120,15 @@ header h1 {
     align-items: start;
 }
 
-.player-info, .cpu-info {
+.player-info,
+.cpu-info {
     background: #f8f9fa;
     padding: 15px;
     border-radius: 10px;
 }
 
-.player-info h3, .cpu-info h3 {
+.player-info h3,
+.cpu-info h3 {
     color: #333;
     margin-bottom: 10px;
     font-size: 1.1rem;
@@ -163,7 +166,8 @@ header h1 {
     margin-bottom: 15px;
 }
 
-#resign-btn, #restart-btn {
+#resign-btn,
+#restart-btn {
     padding: 12px 30px;
     font-size: 1rem;
     font-weight: 600;
@@ -176,15 +180,85 @@ header h1 {
     box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
 }
 
-#resign-btn:hover, #restart-btn:hover {
+#resign-btn:hover,
+#restart-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(245, 87, 108, 0.6);
+}
+
+.game-main {
+    display: grid;
+    grid-template-columns: auto 300px;
+    gap: 30px;
+    align-items: start;
 }
 
 #board-container {
     display: flex;
     justify-content: center;
 }
+
+.move-history {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.move-history h3 {
+    color: #333;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    border-bottom: 2px solid #667eea;
+    padding-bottom: 10px;
+}
+
+#move-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.move-item {
+    padding: 8px 12px;
+    background: white;
+    border-radius: 5px;
+    font-size: 0.95rem;
+    border-left: 3px solid #667eea;
+}
+
+.move-item.cpu-move {
+    border-left-color: #f5576c;
+}
+
+.captured-piece {
+    width: 30px;
+    height: 35px;
+    background: #fff;
+    border: 2px solid #ddd;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.captured-piece:hover {
+    transform: scale(1.1);
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.captured-piece.selected {
+    border-color: #667eea;
+    background: rgba(102, 126, 234, 0.2);
+    transform: scale(1.1);
+}
+
 
 #shogi-board {
     display: grid;
@@ -269,6 +343,14 @@ header h1 {
 @media (max-width: 768px) {
     header h1 {
         font-size: 2rem;
+    }
+
+    .game-main {
+        grid-template-columns: 1fr;
+    }
+
+    .move-history {
+        max-height: 300px;
     }
 
     #shogi-board {
