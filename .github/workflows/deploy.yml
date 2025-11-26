@@ -37,13 +37,18 @@ jobs:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: npm run build
 
+      - name: Create deployment structure
+        run: |
+          mkdir -p _site/shooting
+          cp -r shooting/dist/* _site/shooting/
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './shooting/dist'
+          path: './_site'
 
   deploy:
     environment:
