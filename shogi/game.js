@@ -293,7 +293,7 @@ export class ShogiGame {
         });
     }
 
-    canPlaceCapturedPiece(pieceType, row, col) {
+    canPlaceCapturedPiece(pieceType, row, col, player) {
         // 既に駒がある場所には置けない
         if (this.board[row][col]) {
             return false;
@@ -303,34 +303,42 @@ export class ShogiGame {
         if (pieceType === '歩') {
             for (let r = 0; r < 9; r++) {
                 const piece = this.board[r][col];
-                if (piece && piece.owner === 'player' && piece.type === '歩' && !piece.promoted) {
+                if (piece && piece.owner === player && piece.type === '歩' && !piece.promoted) {
                     return false;
                 }
             }
         }
 
         // 行き所のない駒チェック
-        if (pieceType === '歩' && row === 0) {
-            return false;
+        // 先手（player）の場合
+        if (player === 'player') {
+            if (pieceType === '歩' && row === 0) return false;
+            if (pieceType === '香' && row === 0) return false;
+            if (pieceType === '桂' && (row === 0 || row === 1)) return false;
         }
-        if (pieceType === '香' && row === 0) {
-            return false;
-        }
-        if (pieceType === '桂' && (row === 0 || row === 1)) {
-            return false;
+        // 後手（cpu）の場合
+        else {
+            if (pieceType === '歩' && row === 8) return false;
+            if (pieceType === '香' && row === 8) return false;
+            if (pieceType === '桂' && (row === 8 || row === 7)) return false;
         }
 
         // 打ち歩詰めチェック（簡易版）
-        if (pieceType === '歩' && row > 0) {
-            const frontPiece = this.board[row - 1][col];
-            if (frontPiece && frontPiece.owner === 'cpu' && (frontPiece.type === '玉' || frontPiece.type === '王')) {
-                return false;
+        const opponent = player === 'player' ? 'cpu' : 'player';
+        if (pieceType === '歩') {
+            // 先手は上方向、後手は下方向
+            const frontRow = player === 'player' ? row - 1 : row + 1;
+            if (frontRow >= 0 && frontRow < 9) {
+                const frontPiece = this.board[frontRow][col];
+                if (frontPiece && frontPiece.owner === opponent && (frontPiece.type === '玉' || frontPiece.type === '王')) {
+                    return false;
+                }
             }
         }
 
         // 王手放置チェック（仮想的に配置してチェック）
-        this.board[row][col] = { type: pieceType, owner: 'player', promoted: false };
-        const isCheck = this.isKingInCheck('player');
+        this.board[row][col] = { type: pieceType, owner: player, promoted: false };
+        const isCheck = this.isKingInCheck(player);
         this.board[row][col] = null; // 元に戻す
 
         if (isCheck) return false;
@@ -455,38 +463,98 @@ export class ShogiGame {
     cpuTurn() {
         if (this.gameOver) return;
 
-        const cpuMoves = this.getAllValidMoves('cpu');
-        if (cpuMoves.length === 0) {
+        // 全ての合法手（盤上の移動 + 持ち駒）を取得
+        const legalMoves = this.getAllLegalMoves('cpu');
+
+        if (legalMoves.length === 0) {
             this.endGame('player');
             return;
         }
 
-        // 難易度に応じた思考
         let selectedMove;
+
         if (this.difficulty === 'easy') {
-            selectedMove = cpuMoves[Math.floor(Math.random() * cpuMoves.length)];
+            // 完全ランダム
+            selectedMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
         } else if (this.difficulty === 'medium') {
-            // 駒を取れる手を優先
-            const captureMoves = cpuMoves.filter(move => this.board[move.toRow][move.toCol]);
-            selectedMove = captureMoves.length > 0 ?
-                captureMoves[Math.floor(Math.random() * captureMoves.length)] :
-                cpuMoves[Math.floor(Math.random() * cpuMoves.length)];
+            // 駒を取れる手があれば優先、なければランダム
+            // 持ち駒を使う手も考慮（ランダムに混ぜる）
+            const captureMoves = legalMoves.filter(m => m.type === 'move' && this.board[m.toRow][m.toCol]);
+
+            if (captureMoves.length > 0 && Math.random() < 0.7) {
+                selectedMove = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+            } else {
+                selectedMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            }
         } else {
-            // 上級：駒の価値を考慮
-            const scoredMoves = cpuMoves.map(move => ({
-                ...move,
-                score: this.evaluateMove(move)
-            }));
-            scoredMoves.sort((a, b) => b.score - a.score);
-            const topMoves = scoredMoves.filter(m => m.score === scoredMoves[0].score);
-            selectedMove = topMoves[Math.floor(Math.random() * topMoves.length)];
+            // Hard: Minimax法（深さ3）
+            // 処理時間を考慮して、候補手を絞るか深さを調整
+            // ここでは全探索に近い形で行うが、候補手が多い場合は時間がかかる可能性がある
+
+            // 探索深さ
+            const depth = 3;
+            let bestScore = -Infinity;
+            let bestMoves = [];
+
+            // α-β法のための初期値
+            const alpha = -Infinity;
+            const beta = Infinity;
+
+            for (const move of legalMoves) {
+                // 仮想的に移動
+                const undo = this.applyVirtualMove(move, 'cpu');
+
+                // 相手（プレイヤー）のターンとして評価（最小化）
+                const score = this.minimax(depth - 1, alpha, beta, false);
+
+                // 元に戻す
+                this.undoVirtualMove(undo);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMoves = [move];
+                } else if (score === bestScore) {
+                    bestMoves.push(move);
+                }
+            }
+
+            selectedMove = bestMoves[Math.floor(Math.random() * bestMoves.length)];
         }
 
-        this.makeMove(selectedMove.fromRow, selectedMove.fromCol, selectedMove.toRow, selectedMove.toCol);
+        // 選んだ手を実行
+        if (selectedMove.type === 'move') {
+            this.makeMove(selectedMove.fromRow, selectedMove.fromCol, selectedMove.toRow, selectedMove.toCol);
+        } else {
+            // 持ち駒を打つ処理（CPU用）
+            this.executeCpuDrop(selectedMove);
+        }
     }
 
-    getAllValidMoves(player) {
+    // CPUが持ち駒を打つ処理
+    executeCpuDrop(move) {
+        const pieceType = move.piece;
+        const index = this.cpuCaptured.indexOf(pieceType);
+        if (index > -1) {
+            this.cpuCaptured.splice(index, 1);
+        }
+
+        this.board[move.toRow][move.toCol] = {
+            type: pieceType,
+            owner: 'cpu',
+            promoted: false
+        };
+
+        this.recordMove(`${pieceType}打`, move.toRow, move.toCol, 'cpu');
+        this.currentPlayer = 'player';
+        this.renderBoard();
+        this.updateUI();
+    }
+
+    // 合法手（移動・打ち込み）を全て取得
+    getAllLegalMoves(player) {
         const moves = [];
+
+        // 1. 盤上の駒の移動
         for (let row = 0; row < 9; row++) {
             for (let col = 0; col < 9; col++) {
                 const piece = this.board[row][col];
@@ -494,32 +562,240 @@ export class ShogiGame {
                     const validMoves = this.getValidMoves(row, col);
                     validMoves.forEach(move => {
                         moves.push({
+                            type: 'move',
                             fromRow: row,
                             fromCol: col,
                             toRow: move.row,
-                            toCol: move.col
+                            toCol: move.col,
+                            piece: piece // 仮想移動のために駒情報も持たせる
                         });
                     });
                 }
             }
         }
+
+        // 2. 持ち駒の打ち込み
+        const captured = player === 'player' ? this.playerCaptured : this.cpuCaptured;
+        const uniquePieces = [...new Set(captured)];
+
+        for (const pieceType of uniquePieces) {
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (this.canPlaceCapturedPiece(pieceType, r, c, player)) {
+                        moves.push({
+                            type: 'drop',
+                            piece: pieceType,
+                            toRow: r,
+                            toCol: c,
+                            owner: player // 仮想移動のためにowner情報も持たせる
+                        });
+                    }
+                }
+            }
+        }
+
         return moves;
     }
 
-    evaluateMove(move) {
+    // Minimax法（Alpha-Beta法）
+    minimax(depth, alpha, beta, isMaximizing) {
+        if (depth === 0) {
+            return this.evaluateBoard('cpu');
+        }
+
+        const player = isMaximizing ? 'cpu' : 'player';
+        const legalMoves = this.getAllLegalMoves(player);
+
+        if (legalMoves.length === 0) {
+            // 詰み
+            return isMaximizing ? -1000000 : 1000000; // 詰みは非常に大きなスコア差
+        }
+
+        if (isMaximizing) {
+            let maxEval = -Infinity;
+            for (const move of legalMoves) {
+                const undo = this.applyVirtualMove(move, player);
+                const evalScore = this.minimax(depth - 1, alpha, beta, false);
+                this.undoVirtualMove(undo);
+
+                maxEval = Math.max(maxEval, evalScore);
+                alpha = Math.max(alpha, evalScore);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            for (const move of legalMoves) {
+                const undo = this.applyVirtualMove(move, player);
+                const evalScore = this.minimax(depth - 1, alpha, beta, true);
+                this.undoVirtualMove(undo);
+
+                minEval = Math.min(minEval, evalScore);
+                beta = Math.min(beta, evalScore);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+
+    // 盤面評価関数（CPU視点）
+    evaluateBoard(player) {
         const pieceValues = {
-            '歩': 1, '香': 3, '桂': 4, '銀': 5, '金': 6, '角': 8, '飛': 10, '王': 1000, '玉': 1000,
-            '!と': 6, '!杏': 6, '!圭': 6, '!全': 6, '!馬': 12, '!竜': 15
+            '歩': 100, '香': 300, '桂': 400, '銀': 500, '金': 600, '角': 800, '飛': 1000, '王': 100000, '玉': 100000,
+            '!と': 700, '!杏': 700, '!圭': 700, '!全': 700, '!馬': 1000, '!竜': 1200
         };
 
         let score = 0;
-        const targetPiece = this.board[move.toRow][move.toCol];
 
-        if (targetPiece) {
-            score += pieceValues[targetPiece.type] || 0;
+        // 盤上の駒の評価
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const piece = this.board[r][c];
+                if (piece) {
+                    let value = pieceValues[piece.type] || 0;
+
+                    // 位置による補正（中央に近いほど少し高く評価）
+                    // CPUは下側、プレイヤーは上側
+                    const rowBonus = piece.owner === 'cpu' ? r : (8 - r); // CPUはrowが大きいほど、playerはrowが小さいほど有利
+                    const colBonus = Math.abs(4 - c); // 中央に近いほど良い
+                    value += (rowBonus * 5) + ((4 - colBonus) * 5); // 適当な重み付け
+
+                    if (piece.owner === 'cpu') {
+                        score += value;
+                    } else {
+                        score -= value;
+                    }
+                }
+            }
+        }
+
+        // 持ち駒の評価
+        for (const p of this.cpuCaptured) {
+            score += (pieceValues[p] || 0) * 1.1; // 持ち駒は少し価値を高めに
+        }
+        for (const p of this.playerCaptured) {
+            score -= (pieceValues[p] || 0) * 1.1;
+        }
+
+        // 王手がかかっているかどうかの評価
+        if (this.isKingInCheck('player')) {
+            score += 500; // 相手に王手がかかっていると有利
+        }
+        if (this.isKingInCheck('cpu')) {
+            score -= 500; // 自分に王手がかかっていると不利
         }
 
         return score;
+    }
+
+    // 仮想的な移動の適用
+    applyVirtualMove(move, currentPlayer) {
+        const undoInfo = {
+            move: move,
+            originalPiece: null, // 移動元の駒
+            capturedPiece: null, // 取った駒
+            promoted: false,
+            capturedPieceType: null, // 持ち駒に追加された駒のタイプ
+            capturedPieceIndex: -1 // 持ち駒から削除された駒のインデックス
+        };
+
+        if (move.type === 'move') {
+            const piece = this.board[move.fromRow][move.fromCol];
+            undoInfo.originalPiece = { ...piece }; // 駒の状態をコピー
+            undoInfo.capturedPiece = this.board[move.toRow][move.toCol]; // 取った駒（あれば）
+
+            // 成りの判定と適用
+            let currentPieceType = piece.type;
+            let currentPromoted = piece.promoted;
+
+            if (piece.owner === 'player' && move.toRow <= 2 && !piece.promoted && PIECES[piece.type].canPromote) {
+                currentPromoted = true;
+                currentPieceType = PIECES[piece.type].promoted;
+                undoInfo.promoted = true;
+            } else if (piece.owner === 'cpu' && move.toRow >= 6 && !piece.promoted && PIECES[piece.type].canPromote) {
+                currentPromoted = true;
+                currentPieceType = PIECES[piece.type].promoted;
+                undoInfo.promoted = true;
+            }
+
+            // 盤面を更新
+            this.board[move.toRow][move.toCol] = {
+                type: currentPieceType,
+                owner: piece.owner,
+                promoted: currentPromoted
+            };
+            this.board[move.fromRow][move.fromCol] = null;
+
+            // 取った駒を持ち駒に追加
+            if (undoInfo.capturedPiece) {
+                const basePiece = undoInfo.capturedPiece.type.startsWith('!') ? undoInfo.capturedPiece.type.substring(1) : undoInfo.capturedPiece.type;
+                const capturedPieceType = basePiece === 'と' ? '歩' :
+                    basePiece === '杏' ? '香' :
+                        basePiece === '圭' ? '桂' :
+                            basePiece === '全' ? '銀' :
+                                basePiece === '馬' ? '角' :
+                                    basePiece === '竜' ? '飛' : basePiece;
+
+                const capturedList = piece.owner === 'player' ? this.playerCaptured : this.cpuCaptured;
+                capturedList.push(capturedPieceType);
+                undoInfo.capturedPieceType = capturedPieceType;
+            }
+
+        } else { // 打ち込み (type === 'drop')
+            const pieceType = move.piece;
+            const owner = move.owner; // getAllLegalMovesでownerを追加済み
+
+            const capturedList = owner === 'player' ? this.playerCaptured : this.cpuCaptured;
+            const index = capturedList.indexOf(pieceType);
+            if (index > -1) {
+                capturedList.splice(index, 1);
+                undoInfo.capturedPieceIndex = index;
+            }
+
+            this.board[move.toRow][move.toCol] = {
+                type: pieceType,
+                owner: owner,
+                promoted: false
+            };
+        }
+
+        return undoInfo;
+    }
+
+    // 仮想的な移動を元に戻す
+    undoVirtualMove(undoInfo) {
+        const move = undoInfo.move;
+
+        if (move.type === 'move') {
+            // 移動元の駒を戻す
+            this.board[move.fromRow][move.fromCol] = undoInfo.originalPiece;
+            // 移動先の駒を元に戻す（取られた駒があればそれに戻す）
+            this.board[move.toRow][move.toCol] = undoInfo.capturedPiece;
+
+            // 成りを元に戻す
+            if (undoInfo.promoted) {
+                this.board[move.fromRow][move.fromCol].promoted = false;
+                this.board[move.fromRow][move.fromCol].type = undoInfo.originalPiece.type;
+            }
+
+            // 持ち駒から取った駒を削除
+            if (undoInfo.capturedPieceType) {
+                const capturedList = undoInfo.originalPiece.owner === 'player' ? this.playerCaptured : this.cpuCaptured;
+                const index = capturedList.lastIndexOf(undoInfo.capturedPieceType);
+                if (index > -1) {
+                    capturedList.splice(index, 1);
+                }
+            }
+        } else { // 打ち込み (type === 'drop')
+            // 盤面から駒を削除
+            this.board[move.toRow][move.toCol] = null;
+
+            // 持ち駒を戻す
+            if (undoInfo.capturedPieceIndex !== -1) {
+                const capturedList = move.owner === 'player' ? this.playerCaptured : this.cpuCaptured;
+                capturedList.splice(undoInfo.capturedPieceIndex, 0, move.piece);
+            }
+        }
     }
 
     updateUI() {
