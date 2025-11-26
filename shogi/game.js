@@ -176,7 +176,7 @@ export class ShogiGame {
         }
     }
 
-    getValidMoves(row, col) {
+    getValidMoves(row, col, ignoreCheck = false) {
         const piece = this.board[row][col];
         if (!piece) return [];
 
@@ -216,7 +216,63 @@ export class ShogiGame {
             }
         }
 
+        // 王手放置・自殺手のチェック
+        if (!ignoreCheck) {
+            const validMoves = [];
+            for (const move of moves) {
+                // 仮想的に移動
+                const originalTarget = this.board[move.row][move.col];
+                this.board[move.row][move.col] = this.board[row][col];
+                this.board[row][col] = null;
+
+                // 王手がかかっていないかチェック
+                if (!this.isKingInCheck(piece.owner)) {
+                    validMoves.push(move);
+                }
+
+                // 元に戻す
+                this.board[row][col] = this.board[move.row][move.col];
+                this.board[move.row][move.col] = originalTarget;
+            }
+            return validMoves;
+        }
+
         return moves;
+    }
+
+    // 指定したプレイヤーの玉に王手がかかっているか
+    isKingInCheck(player) {
+        // 玉の位置を探す
+        let kingRow, kingCol;
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const piece = this.board[r][c];
+                if (piece && piece.owner === player && (piece.type === '王' || piece.type === '玉')) {
+                    kingRow = r;
+                    kingCol = c;
+                    break;
+                }
+            }
+        }
+
+        if (kingRow === undefined) return false;
+
+        // 相手の全ての駒の効きをチェック
+        const opponent = player === 'player' ? 'cpu' : 'player';
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const piece = this.board[r][c];
+                if (piece && piece.owner === opponent) {
+                    // 王手チェック時は再帰を防ぐため ignoreCheck=true
+                    const moves = this.getValidMoves(r, c, true);
+                    if (moves.some(m => m.row === kingRow && m.col === kingCol)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     highlightValidMoves(row, col) {
@@ -271,6 +327,13 @@ export class ShogiGame {
                 return false;
             }
         }
+
+        // 王手放置チェック（仮想的に配置してチェック）
+        this.board[row][col] = { type: pieceType, owner: 'player', promoted: false };
+        const isCheck = this.isKingInCheck('player');
+        this.board[row][col] = null; // 元に戻す
+
+        if (isCheck) return false;
 
         return true;
     }
