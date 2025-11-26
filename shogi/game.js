@@ -556,7 +556,7 @@ export class ShogiGame {
 
         // CPUの持ち駒（表示のみ）
         document.getElementById('cpu-captured').innerHTML =
-            this.cpuCaptured.map(p => `< div class="captured-piece" > ${p}</div > `).join('');
+            this.cpuCaptured.map(p => `<div class="captured-piece">${p}</div>`).join('');
     }
 
     endGame(winner) {
