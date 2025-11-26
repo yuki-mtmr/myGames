@@ -239,6 +239,43 @@ export class ShogiGame {
     placeCapturedPiece(row, col) {
         const pieceType = this.selectedCapturedPiece;
 
+        // 二歩チェック（同じ筋に歩が既にあるか）
+        if (pieceType === '歩') {
+            for (let r = 0; r < 9; r++) {
+                const piece = this.board[r][col];
+                if (piece && piece.owner === 'player' && piece.type === '歩' && !piece.promoted) {
+                    alert('二歩は禁止です！');
+                    return;
+                }
+            }
+        }
+
+        // 行き所のない駒チェック
+        if (pieceType === '歩' && row === 0) {
+            alert('歩は1段目に打てません！');
+            return;
+        }
+        if (pieceType === '香' && row === 0) {
+            alert('香は1段目に打てません！');
+            return;
+        }
+        if (pieceType === '桂' && (row === 0 || row === 1)) {
+            alert('桂は1・2段目に打てません！');
+            return;
+        }
+
+        // 打ち歩詰めチェック（簡易版：歩を打って相手の王/玉の前に置く場合）
+        if (pieceType === '歩') {
+            // 歩を打った位置の1つ前に相手の王/玉がいるかチェック
+            if (row > 0) {
+                const frontPiece = this.board[row - 1][col];
+                if (frontPiece && frontPiece.owner === 'cpu' && (frontPiece.type === '玉' || frontPiece.type === '王')) {
+                    // 簡易的なチェック：相手の王が逃げられるかどうか
+                    alert('打ち歩詰めは禁止です！');
+                    return;
+                }
+            }
+        }
         // 持ち駒から削除
         const index = this.playerCaptured.indexOf(pieceType);
         if (index > -1) {
