@@ -364,9 +364,15 @@ header h1 {
     }
 
     .piece {
-        width: 34px;
-        height: 38px;
+        width: 32px;
+        height: 36px;
         font-size: 0.9rem;
+    }
+
+    .captured-piece {
+        width: 28px;
+        height: 32px;
+        font-size: 0.8rem;
     }
 
     .info-panel {
