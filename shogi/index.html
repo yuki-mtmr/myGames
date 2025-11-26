@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>将棋対局</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="app">
+        <header>
+            <h1>将棋対局</h1>
+        </header>
+
+        <div id="game-setup" class="modal">
+            <div class="modal-content">
+                <h2>対局設定</h2>
+                <div class="difficulty-select">
+                    <h3>CPUの強さを選択</h3>
+                    <button class="difficulty-btn" data-level="easy">初級</button>
+                    <button class="difficulty-btn" data-level="medium">中級</button>
+                    <button class="difficulty-btn" data-level="hard">上級</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="game-container">
+            <div class="info-panel">
+                <div class="player-info">
+                    <h3>☗ あなた（先手）</h3>
+                    <div id="player-captured" class="captured-pieces"></div>
+                </div>
+                <div class="game-status">
+                    <p id="turn-indicator">あなたの手番です</p>
+                    <button id="resign-btn">投了</button>
+                </div>
+                <div class="cpu-info">
+                    <h3>☖ CPU（後手）</h3>
+                    <div id="cpu-captured" class="captured-pieces"></div>
+                </div>
+            </div>
+
+            <div id="board-container">
+                <div id="shogi-board"></div>
+            </div>
+        </div>
+
+        <div id="game-over" class="modal hidden">
+            <div class="modal-content">
+                <h2 id="game-result"></h2>
+                <button id="restart-btn">新しい対局</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+
+</html>

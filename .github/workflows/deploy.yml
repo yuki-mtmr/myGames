@@ -27,20 +27,30 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
+      - name: Install dependencies (shooting)
         working-directory: ./shooting
         run: npm install
 
-      - name: Build
+      - name: Build shooting
         working-directory: ./shooting
         env:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: npm run build
 
+      - name: Install dependencies (shogi)
+        working-directory: ./shogi
+        run: npm install
+
+      - name: Build shogi
+        working-directory: ./shogi
+        run: npm run build
+
       - name: Create deployment structure
         run: |
           mkdir -p _site/shooting
+          mkdir -p _site/shogi
           cp -r shooting/dist/* _site/shooting/
+          cp -r shogi/dist/* _site/shogi/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
