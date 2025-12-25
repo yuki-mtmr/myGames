@@ -52,9 +52,65 @@ export class ShogiGame {
         this.cpuCaptured = [];
         this.moveHistory = []; // 指し手履歴
         this.gameOver = false;
+        this.pendingMove = null; // 成り選択待ちの移動
 
+        this.setupAudioContext();
         this.renderBoard();
         this.updateUI();
+        this.setupPromotionModal();
+    }
+
+    setupAudioContext() {
+        // Web Audio APIのコンテキストを初期化
+        this.audioContext = null;
+
+        // ユーザーインタラクション後に初期化（ブラウザのポリシー対応）
+        const initAudio = () => {
+            if (!this.audioContext) {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            document.removeEventListener('click', initAudio);
+        };
+        document.addEventListener('click', initAudio);
+    }
+
+    playMoveSound() {
+        // AudioContextが初期化されていない場合は何もしない
+        if (!this.audioContext) return;
+
+        const now = this.audioContext.currentTime;
+
+        // ホワイトノイズを使った硬い「カタっ」という音
+        const bufferSize = this.audioContext.sampleRate * 0.03; // 30ms
+        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        // ホワイトノイズを生成
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.audioContext.createBufferSource();
+        noise.buffer = buffer;
+
+        // 高域フィルターで木の音らしくする
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(2000, now); // 高域のみ通す
+
+        const gainNode = this.audioContext.createGain();
+
+        noise.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        // 非常に短く鋭いアタックとリリース
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.4, now + 0.001); // 1msで最大音量
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.025); // 25msで減衰
+
+        noise.start(now);
+        noise.stop(now + 0.03);
     }
 
     initializeBoard() {
@@ -132,7 +188,7 @@ export class ShogiGame {
         // 持ち駒を選択している場合
         if (this.selectedCapturedPiece) {
             // バリデーションチェック
-            if (this.canPlaceCapturedPiece(this.selectedCapturedPiece, row, col)) {
+            if (this.canPlaceCapturedPiece(this.selectedCapturedPiece, row, col, 'player')) {
                 this.placeCapturedPiece(row, col);
                 this.selectedCapturedPiece = null;
                 this.clearHighlights();
@@ -147,6 +203,12 @@ export class ShogiGame {
 
         // 駒を選択
         if (piece && piece.owner === 'player' && !this.selectedPiece) {
+            // 王手時は、その駒で王手を解消できるかチェック
+            const validMoves = this.getValidMoves(row, col);
+            if (validMoves.length === 0) {
+                // 動かせる場所がない駒は選択できない
+                return;
+            }
             this.selectedPiece = piece;
             this.selectedCell = { row, col };
             this.highlightValidMoves(row, col);
@@ -159,14 +221,10 @@ export class ShogiGame {
             const isValidMove = validMoves.some(move => move.row === row && move.col === col);
 
             if (isValidMove) {
-                this.makeMove(this.selectedCell.row, this.selectedCell.col, row, col);
+                this.initiateMove(this.selectedCell.row, this.selectedCell.col, row, col);
                 this.selectedPiece = null;
                 this.selectedCell = null;
                 this.clearHighlights();
-
-                if (!this.gameOver) {
-                    setTimeout(() => this.cpuTurn(), 500);
-                }
             } else {
                 this.selectedPiece = null;
                 this.selectedCell = null;
@@ -198,9 +256,18 @@ export class ShogiGame {
                     const steps = Math.max(Math.abs(dx), Math.abs(dy));
                     let blocked = false;
 
+                    // 移動方向の単位ベクトル
+                    const stepDx = dx === 0 ? 0 : dx / Math.abs(dx);
+                    const stepDy = dy === 0 ? 0 : dy / Math.abs(dy);
+
                     for (let step = 1; step < steps; step++) {
-                        const checkCol = col + (piece.owner === 'player' ? dx : -dx) * step / steps;
-                        const checkRow = row + (piece.owner === 'player' ? dy : -dy) * step / steps;
+                        const checkCol = col + (piece.owner === 'player' ? stepDx * step : -stepDx * step);
+                        const checkRow = row + (piece.owner === 'player' ? stepDy * step : -stepDy * step);
+                        // 範囲チェックを追加
+                        if (checkRow < 0 || checkRow >= 9 || checkCol < 0 || checkCol >= 9) {
+                            blocked = true;
+                            break;
+                        }
                         if (this.board[checkRow][checkCol]) {
                             blocked = true;
                             break;
@@ -217,6 +284,7 @@ export class ShogiGame {
         }
 
         // 王手放置・自殺手のチェック
+        // ignoreCheckがfalseの場合、王手を解消する手のみを返す
         if (!ignoreCheck) {
             const validMoves = [];
             for (const move of moves) {
@@ -350,7 +418,7 @@ export class ShogiGame {
         const pieceType = this.selectedCapturedPiece;
 
         // バリデーションチェック（無効な場合は何もしない）
-        if (!this.canPlaceCapturedPiece(pieceType, row, col)) {
+        if (!this.canPlaceCapturedPiece(pieceType, row, col, 'player')) {
             return;
         }
 
@@ -367,8 +435,11 @@ export class ShogiGame {
             promoted: false
         };
 
+        // 効果音を再生
+        this.playMoveSound();
+
         // 指し手を記録
-        this.recordMove(`${pieceType} 打`, row, col, 'player');
+        this.recordMove(`${pieceType}打`, row, col, 'player');
 
         this.currentPlayer = 'cpu';
         this.renderBoard();
@@ -401,7 +472,68 @@ export class ShogiGame {
         moveList.scrollTop = moveList.scrollHeight;
     }
 
-    makeMove(fromRow, fromCol, toRow, toCol) {
+    setupPromotionModal() {
+        // 成り選択モーダルを作成
+        const modal = document.createElement('div');
+        modal.id = 'promotion-modal';
+        modal.className = 'modal hidden';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h2>成りますか？</h2>
+                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                    <button id="promote-yes" class="difficulty-btn">成る</button>
+                    <button id="promote-no" class="difficulty-btn" style="background: linear-gradient(135deg, #999 0%, #666 100%);">成らない</button>
+                </div>
+            </div>
+        `;
+        document.getElementById('app').appendChild(modal);
+
+        document.getElementById('promote-yes').addEventListener('click', () => {
+            this.completeMove(true);
+        });
+
+        document.getElementById('promote-no').addEventListener('click', () => {
+            this.completeMove(false);
+        });
+    }
+
+    initiateMove(fromRow, fromCol, toRow, toCol) {
+        const piece = this.board[fromRow][fromCol];
+
+        // 成れる条件をチェック
+        const canPromote = !piece.promoted && PIECES[piece.type].canPromote &&
+            ((piece.owner === 'player' && (fromRow <= 2 || toRow <= 2)) ||
+                (piece.owner === 'cpu' && (fromRow >= 6 || toRow >= 6)));
+
+        // 成りが強制される条件（行き所のない駒）
+        const mustPromote = !piece.promoted && PIECES[piece.type].canPromote &&
+            ((piece.owner === 'player' && piece.type === '歩' && toRow === 0) ||
+                (piece.owner === 'player' && piece.type === '香' && toRow === 0) ||
+                (piece.owner === 'player' && piece.type === '桂' && (toRow === 0 || toRow === 1)) ||
+                (piece.owner === 'cpu' && piece.type === '歩' && toRow === 8) ||
+                (piece.owner === 'cpu' && piece.type === '香' && toRow === 8) ||
+                (piece.owner === 'cpu' && piece.type === '桂' && (toRow === 7 || toRow === 8)));
+
+        this.pendingMove = { fromRow, fromCol, toRow, toCol };
+
+        if (mustPromote) {
+            // 強制成り
+            this.completeMove(true);
+        } else if (canPromote && piece.owner === 'player') {
+            // プレイヤーに選択させる
+            document.getElementById('promotion-modal').classList.remove('hidden');
+        } else {
+            // 成らない
+            this.completeMove(false);
+        }
+    }
+
+    completeMove(promote) {
+        document.getElementById('promotion-modal').classList.add('hidden');
+
+        if (!this.pendingMove) return;
+
+        const { fromRow, fromCol, toRow, toCol } = this.pendingMove;
         const piece = this.board[fromRow][fromCol];
         const capturedPiece = this.board[toRow][toCol];
 
@@ -432,6 +564,7 @@ export class ShogiGame {
             // 玉を取ったらゲーム終了
             if (capturedPiece.type === '王' || capturedPiece.type === '玉') {
                 this.endGame(piece.owner);
+                return;
             }
         }
 
@@ -439,17 +572,78 @@ export class ShogiGame {
         this.board[toRow][toCol] = piece;
         this.board[fromRow][fromCol] = null;
 
-        // 成りの判定（簡略化：敵陣に入ったら自動的に成る）
-        let promoted = false;
-        if (piece.owner === 'player' && toRow <= 2 && !piece.promoted && PIECES[piece.type].canPromote) {
+        // 成りの処理
+        if (promote && !piece.promoted && PIECES[piece.type].canPromote) {
             piece.promoted = true;
             piece.type = PIECES[piece.type].promoted;
-            promoted = true;
-        } else if (piece.owner === 'cpu' && toRow >= 6 && !piece.promoted && PIECES[piece.type].canPromote) {
+        }
+
+        // 効果音を再生
+        this.playMoveSound();
+
+        // 指し手を記録
+        const moveText = movePieceName + (promote ? '成' : '');
+        this.recordMove(moveText, toRow, toCol, piece.owner);
+
+        this.pendingMove = null;
+        this.currentPlayer = this.currentPlayer === 'player' ? 'cpu' : 'player';
+        this.renderBoard();
+        this.updateUI();
+
+        if (!this.gameOver && this.currentPlayer === 'cpu') {
+            setTimeout(() => this.cpuTurn(), 500);
+        }
+    }
+
+    makeMove(fromRow, fromCol, toRow, toCol, promote = false) {
+        const piece = this.board[fromRow][fromCol];
+        const capturedPiece = this.board[toRow][toCol];
+
+        // 移動する駒の名前
+        let movePieceName = piece.promoted ? piece.type.substring(1) : piece.type;
+
+        // 駒を取る
+        if (capturedPiece) {
+            const basePiece = capturedPiece.type.startsWith('!') ?
+                capturedPiece.type.substring(1) : capturedPiece.type;
+
+            if (piece.owner === 'player') {
+                this.playerCaptured.push(basePiece === 'と' ? '歩' :
+                    basePiece === '杏' ? '香' :
+                        basePiece === '圭' ? '桂' :
+                            basePiece === '全' ? '銀' :
+                                basePiece === '馬' ? '角' :
+                                    basePiece === '竜' ? '飛' : basePiece);
+            } else {
+                this.cpuCaptured.push(basePiece === 'と' ? '歩' :
+                    basePiece === '杏' ? '香' :
+                        basePiece === '圭' ? '桂' :
+                            basePiece === '全' ? '銀' :
+                                basePiece === '馬' ? '角' :
+                                    basePiece === '竜' ? '飛' : basePiece);
+            }
+
+            // 玉を取ったらゲーム終了
+            if (capturedPiece.type === '王' || capturedPiece.type === '玉') {
+                this.endGame(piece.owner);
+                return;
+            }
+        }
+
+        // 駒を移動
+        this.board[toRow][toCol] = piece;
+        this.board[fromRow][fromCol] = null;
+
+        // 成りの判定（CPU用：自動成り）
+        let promoted = false;
+        if (promote || (piece.owner === 'cpu' && toRow >= 6 && !piece.promoted && PIECES[piece.type].canPromote)) {
             piece.promoted = true;
             piece.type = PIECES[piece.type].promoted;
             promoted = true;
         }
+
+        // 効果音を再生
+        this.playMoveSound();
 
         // 指し手を記録
         const moveText = movePieceName + (promoted ? '成' : '');
@@ -543,6 +737,9 @@ export class ShogiGame {
             owner: 'cpu',
             promoted: false
         };
+
+        // 効果音を再生
+        this.playMoveSound();
 
         this.recordMove(`${pieceType}打`, move.toRow, move.toCol, 'cpu');
         this.currentPlayer = 'player';
