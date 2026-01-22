@@ -16,8 +16,12 @@
         <div id="game-setup" class="modal">
             <div class="modal-content">
                 <h2>対局設定</h2>
+                <div class="mode-select">
+                    <h3>対戦モードを選択</h3>
+                    <button class="mode-btn" data-mode="pvp">対人対戦</button>
+                </div>
                 <div class="difficulty-select">
-                    <h3>CPUの強さを選択</h3>
+                    <h3>CPU対戦（強さを選択）</h3>
                     <button class="difficulty-btn" data-level="easy">初級</button>
                     <button class="difficulty-btn" data-level="medium">中級</button>
                     <button class="difficulty-btn" data-level="hard">上級</button>
@@ -28,7 +32,10 @@
         <div id="game-container">
             <div class="game-status">
                 <p id="turn-indicator">あなたの手番です</p>
-                <button id="resign-btn">投了</button>
+                <div class="game-buttons">
+                    <button id="undo-btn">待った</button>
+                    <button id="resign-btn">投了</button>
+                </div>
             </div>
 
             <div class="game-main">
@@ -51,6 +58,7 @@
                 <div class="move-history">
                     <h3>指し手</h3>
                     <div id="move-list"></div>
+                    <button id="export-kif-btn" class="export-btn">棋譜を保存</button>
                 </div>
             </div>
         </div>

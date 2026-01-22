@@ -41,23 +41,91 @@ const PIECES = {
 };
 
 export class ShogiGame {
-    constructor(difficulty) {
+    constructor(difficulty, gameMode = 'cpu') {
         this.difficulty = difficulty;
+        this.gameMode = gameMode; // 'cpu' or 'pvp'
         this.board = this.initializeBoard();
-        this.currentPlayer = 'player'; // 'player' or 'cpu'
+        this.currentPlayer = 'player'; // 'player' or 'cpu' (pvpでは 'player' = 先手, 'cpu' = 後手として扱う)
         this.selectedPiece = null;
         this.selectedCell = null;
         this.selectedCapturedPiece = null; // 選択した持ち駒
-        this.playerCaptured = [];
-        this.cpuCaptured = [];
+        this.playerCaptured = []; // 先手の持ち駒
+        this.cpuCaptured = []; // 後手の持ち駒
         this.moveHistory = []; // 指し手履歴
+        this.boardHistory = []; // 盤面履歴（待った用）
         this.gameOver = false;
         this.pendingMove = null; // 成り選択待ちの移動
+        this.transpositionTable = new Map(); // トランスポジションテーブル
+        this.nodeCount = 0; // 探索ノード数（デバッグ用）
+
+        // 初期盤面を保存
+        this.saveBoardState();
 
         this.setupAudioContext();
         this.renderBoard();
         this.updateUI();
         this.setupPromotionModal();
+    }
+
+    // 盤面状態を保存
+    saveBoardState() {
+        const state = {
+            board: this.board.map(row => row.map(cell =>
+                cell ? { ...cell } : null
+            )),
+            playerCaptured: [...this.playerCaptured],
+            cpuCaptured: [...this.cpuCaptured],
+            currentPlayer: this.currentPlayer,
+            moveHistoryLength: this.moveHistory.length
+        };
+        this.boardHistory.push(state);
+    }
+
+    // 1手戻す（待った）
+    undo() {
+        // CPUモードでは2手戻す（自分とCPUの手）、PvPモードでは1手戻す
+        const stepsBack = this.gameMode === 'cpu' ? 2 : 1;
+
+        // 履歴が足りない場合は戻せない
+        if (this.boardHistory.length <= stepsBack) {
+            return false;
+        }
+
+        // ゲーム終了状態をリセット
+        this.gameOver = false;
+        document.getElementById('game-over').classList.add('hidden');
+
+        // 指定した手数分だけ履歴を戻す
+        for (let i = 0; i < stepsBack; i++) {
+            this.boardHistory.pop();
+        }
+
+        // 最後の状態を復元
+        const state = this.boardHistory[this.boardHistory.length - 1];
+
+        this.board = state.board.map(row => row.map(cell =>
+            cell ? { ...cell } : null
+        ));
+        this.playerCaptured = [...state.playerCaptured];
+        this.cpuCaptured = [...state.cpuCaptured];
+        this.currentPlayer = state.currentPlayer;
+
+        // 指し手履歴も戻す
+        while (this.moveHistory.length > state.moveHistoryLength) {
+            this.moveHistory.pop();
+        }
+
+        // 選択状態をリセット
+        this.selectedPiece = null;
+        this.selectedCell = null;
+        this.selectedCapturedPiece = null;
+        this.pendingMove = null;
+
+        this.renderBoard();
+        this.updateUI();
+        this.updateMoveHistory();
+
+        return true;
     }
 
     setupAudioContext() {
@@ -156,12 +224,24 @@ export class ShogiGame {
         const boardElement = document.getElementById('shogi-board');
         boardElement.innerHTML = '';
 
+        // 王手状態をチェック
+        const playerInCheck = this.isKingInCheck('player');
+        const cpuInCheck = this.isKingInCheck('cpu');
+        const playerKingPos = playerInCheck ? this.getKingPosition('player') : null;
+        const cpuKingPos = cpuInCheck ? this.getKingPosition('cpu') : null;
+
         for (let row = 0; row < 9; row++) {
             for (let col = 0; col < 9; col++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
                 cell.dataset.row = row;
                 cell.dataset.col = col;
+
+                // 王手ハイライト
+                if ((playerKingPos && playerKingPos.row === row && playerKingPos.col === col) ||
+                    (cpuKingPos && cpuKingPos.row === row && cpuKingPos.col === col)) {
+                    cell.classList.add('in-check');
+                }
 
                 const piece = this.board[row][col];
                 if (piece) {
@@ -181,19 +261,22 @@ export class ShogiGame {
     }
 
     handleCellClick(row, col) {
-        if (this.gameOver || this.currentPlayer !== 'player') return;
+        if (this.gameOver) return;
+        // CPUモードでCPUのターンの場合は操作不可
+        if (this.gameMode === 'cpu' && this.currentPlayer !== 'player') return;
 
         const piece = this.board[row][col];
 
         // 持ち駒を選択している場合
         if (this.selectedCapturedPiece) {
             // バリデーションチェック
-            if (this.canPlaceCapturedPiece(this.selectedCapturedPiece, row, col, 'player')) {
+            if (this.canPlaceCapturedPiece(this.selectedCapturedPiece, row, col, this.currentPlayer)) {
                 this.placeCapturedPiece(row, col);
                 this.selectedCapturedPiece = null;
                 this.clearHighlights();
 
-                if (!this.gameOver) {
+                // CPUモードでプレイヤーのターン後のみCPUを呼び出す
+                if (!this.gameOver && this.gameMode === 'cpu' && this.currentPlayer === 'cpu') {
                     setTimeout(() => this.cpuTurn(), 500);
                 }
             }
@@ -202,7 +285,7 @@ export class ShogiGame {
         }
 
         // 駒を選択
-        if (piece && piece.owner === 'player' && !this.selectedPiece) {
+        if (piece && piece.owner === this.currentPlayer && !this.selectedPiece) {
             // 王手時は、その駒で王手を解消できるかチェック
             const validMoves = this.getValidMoves(row, col);
             if (validMoves.length === 0) {
@@ -323,7 +406,7 @@ export class ShogiGame {
             }
         }
 
-        if (kingRow === undefined) return false;
+        if (kingRow === undefined) return false; // 玉が取られた状態
 
         // 相手の全ての駒の効きをチェック
         const opponent = player === 'player' ? 'cpu' : 'player';
@@ -341,6 +424,31 @@ export class ShogiGame {
         }
 
         return false;
+    }
+
+    // 詰み判定（王手がかかっていて、合法手がない状態）
+    isCheckmate(player) {
+        // まず王手がかかっているかチェック
+        if (!this.isKingInCheck(player)) {
+            return false;
+        }
+
+        // 合法手があるかチェック
+        const legalMoves = this.getAllLegalMoves(player);
+        return legalMoves.length === 0;
+    }
+
+    // 玉の位置を取得
+    getKingPosition(player) {
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const piece = this.board[r][c];
+                if (piece && piece.owner === player && (piece.type === '王' || piece.type === '玉')) {
+                    return { row: r, col: c };
+                }
+            }
+        }
+        return null;
     }
 
     highlightValidMoves(row, col) {
@@ -416,22 +524,24 @@ export class ShogiGame {
 
     placeCapturedPiece(row, col) {
         const pieceType = this.selectedCapturedPiece;
+        const currentPlayer = this.currentPlayer;
 
         // バリデーションチェック（無効な場合は何もしない）
-        if (!this.canPlaceCapturedPiece(pieceType, row, col, 'player')) {
+        if (!this.canPlaceCapturedPiece(pieceType, row, col, currentPlayer)) {
             return;
         }
 
         // 持ち駒から削除
-        const index = this.playerCaptured.indexOf(pieceType);
+        const capturedList = currentPlayer === 'player' ? this.playerCaptured : this.cpuCaptured;
+        const index = capturedList.indexOf(pieceType);
         if (index > -1) {
-            this.playerCaptured.splice(index, 1);
+            capturedList.splice(index, 1);
         }
 
         // 盤面に配置
         this.board[row][col] = {
             type: pieceType,
-            owner: 'player',
+            owner: currentPlayer,
             promoted: false
         };
 
@@ -439,11 +549,22 @@ export class ShogiGame {
         this.playMoveSound();
 
         // 指し手を記録
-        this.recordMove(`${pieceType}打`, row, col, 'player');
+        this.recordMove(`${pieceType}打`, row, col, currentPlayer);
 
-        this.currentPlayer = 'cpu';
+        // ターン切り替え
+        this.currentPlayer = currentPlayer === 'player' ? 'cpu' : 'player';
+
+        // 盤面状態を保存
+        this.saveBoardState();
+
         this.renderBoard();
         this.updateUI();
+
+        // 詰み判定
+        const opponent = currentPlayer === 'player' ? 'cpu' : 'player';
+        if (this.isCheckmate(opponent)) {
+            this.endGame(currentPlayer, 'checkmate');
+        }
     }
 
     recordMove(moveText, toRow, toCol, player) {
@@ -563,7 +684,7 @@ export class ShogiGame {
 
             // 玉を取ったらゲーム終了
             if (capturedPiece.type === '王' || capturedPiece.type === '玉') {
-                this.endGame(piece.owner);
+                this.endGame(piece.owner, 'capture');
                 return;
             }
         }
@@ -587,10 +708,22 @@ export class ShogiGame {
 
         this.pendingMove = null;
         this.currentPlayer = this.currentPlayer === 'player' ? 'cpu' : 'player';
+
+        // 盤面状態を保存
+        this.saveBoardState();
+
         this.renderBoard();
         this.updateUI();
 
-        if (!this.gameOver && this.currentPlayer === 'cpu') {
+        // 詰み判定
+        const opponent = piece.owner === 'player' ? 'cpu' : 'player';
+        if (this.isCheckmate(opponent)) {
+            this.endGame(piece.owner, 'checkmate');
+            return;
+        }
+
+        // CPUモードでCPUのターンの場合のみCPUを呼び出す
+        if (!this.gameOver && this.gameMode === 'cpu' && this.currentPlayer === 'cpu') {
             setTimeout(() => this.cpuTurn(), 500);
         }
     }
@@ -625,7 +758,7 @@ export class ShogiGame {
 
             // 玉を取ったらゲーム終了
             if (capturedPiece.type === '王' || capturedPiece.type === '玉') {
-                this.endGame(piece.owner);
+                this.endGame(piece.owner, 'capture');
                 return;
             }
         }
@@ -650,8 +783,18 @@ export class ShogiGame {
         this.recordMove(moveText, toRow, toCol, piece.owner);
 
         this.currentPlayer = this.currentPlayer === 'player' ? 'cpu' : 'player';
+
+        // 盤面状態を保存
+        this.saveBoardState();
+
         this.renderBoard();
         this.updateUI();
+
+        // 詰み判定
+        const opponent = piece.owner === 'player' ? 'cpu' : 'player';
+        if (this.isCheckmate(opponent)) {
+            this.endGame(piece.owner, 'checkmate');
+        }
     }
 
     cpuTurn() {
@@ -671,45 +814,96 @@ export class ShogiGame {
             // 完全ランダム
             selectedMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
         } else if (this.difficulty === 'medium') {
-            // 駒を取れる手があれば優先、なければランダム
-            // 持ち駒を使う手も考慮（ランダムに混ぜる）
-            const captureMoves = legalMoves.filter(m => m.type === 'move' && this.board[m.toRow][m.toCol]);
+            // 駒の価値を考慮した駒取り優先ロジック
+            const pieceValues = {
+                '歩': 100, '香': 300, '桂': 400, '銀': 500, '金': 600, '角': 800, '飛': 1000,
+                '!と': 700, '!杏': 700, '!圭': 700, '!全': 700, '!馬': 1100, '!竜': 1300
+            };
 
-            if (captureMoves.length > 0 && Math.random() < 0.7) {
-                selectedMove = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+            // 駒を取れる手を価値順にソート
+            const captureMoves = legalMoves
+                .filter(m => m.type === 'move' && this.board[m.toRow][m.toCol])
+                .map(m => ({
+                    move: m,
+                    value: pieceValues[this.board[m.toRow][m.toCol].type] || 0
+                }))
+                .sort((a, b) => b.value - a.value);
+
+            if (captureMoves.length > 0 && Math.random() < 0.8) {
+                // 高価値駒を優先（飛・角は90%で狙う、それ以外は70%）
+                const bestCapture = captureMoves[0];
+                if (bestCapture.value >= 800) {
+                    // 飛車・角行は高確率で取る
+                    selectedMove = bestCapture.move;
+                } else if (bestCapture.value >= 500 && Math.random() < 0.85) {
+                    // 金銀も高確率で取る
+                    selectedMove = bestCapture.move;
+                } else {
+                    // その他の駒は上位からランダムに選択
+                    const topMoves = captureMoves.slice(0, Math.min(3, captureMoves.length));
+                    selectedMove = topMoves[Math.floor(Math.random() * topMoves.length)].move;
+                }
             } else {
-                selectedMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+                // 簡易評価で良さそうな手を選ぶ（完全ランダムではなく）
+                const scoredMoves = legalMoves.map(m => {
+                    const undo = this.applyVirtualMove(m, 'cpu');
+                    const score = this.evaluateBoardQuick('cpu');
+                    this.undoVirtualMove(undo);
+                    return { move: m, score };
+                });
+                scoredMoves.sort((a, b) => b.score - a.score);
+
+                // 上位5手からランダムに選択（多少のランダム性を残す）
+                const topN = Math.min(5, scoredMoves.length);
+                selectedMove = scoredMoves[Math.floor(Math.random() * topN)].move;
             }
         } else {
-            // Hard: Minimax法（深さ3）
-            // 処理時間を考慮して、候補手を絞るか深さを調整
-            // ここでは全探索に近い形で行うが、候補手が多い場合は時間がかかる可能性がある
+            // Hard: Minimax法 + トランスポジションテーブル + 手の順序付け
+            this.transpositionTable.clear();
+            this.nodeCount = 0;
 
-            // 探索深さ
-            const depth = 3;
+            // 手の順序付け（駒取りを先に評価、高価値駒を優先）
+            const pieceValues = {
+                '歩': 100, '香': 300, '桂': 400, '銀': 500, '金': 600, '角': 800, '飛': 1000,
+                '!と': 700, '!杏': 700, '!圭': 700, '!全': 700, '!馬': 1100, '!竜': 1300
+            };
+
+            const orderedMoves = [...legalMoves].sort((a, b) => {
+                // 駒取りを優先
+                const aCapture = a.type === 'move' && this.board[a.toRow][a.toCol]
+                    ? pieceValues[this.board[a.toRow][a.toCol].type] || 0 : 0;
+                const bCapture = b.type === 'move' && this.board[b.toRow][b.toCol]
+                    ? pieceValues[this.board[b.toRow][b.toCol].type] || 0 : 0;
+                return bCapture - aCapture;
+            });
+
+            // 反復深化法（深さ2から開始し、深さ4まで）
+            const maxDepth = 4;
+            let bestMoves = [orderedMoves[0]];
             let bestScore = -Infinity;
-            let bestMoves = [];
 
-            // α-β法のための初期値
-            const alpha = -Infinity;
-            const beta = Infinity;
+            for (let depth = 2; depth <= maxDepth; depth++) {
+                let currentBestScore = -Infinity;
+                let currentBestMoves = [];
+                let alpha = -Infinity;
+                const beta = Infinity;
 
-            for (const move of legalMoves) {
-                // 仮想的に移動
-                const undo = this.applyVirtualMove(move, 'cpu');
+                for (const move of orderedMoves) {
+                    const undo = this.applyVirtualMove(move, 'cpu');
+                    const score = this.minimax(depth - 1, alpha, beta, false);
+                    this.undoVirtualMove(undo);
 
-                // 相手（プレイヤー）のターンとして評価（最小化）
-                const score = this.minimax(depth - 1, alpha, beta, false);
-
-                // 元に戻す
-                this.undoVirtualMove(undo);
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestMoves = [move];
-                } else if (score === bestScore) {
-                    bestMoves.push(move);
+                    if (score > currentBestScore) {
+                        currentBestScore = score;
+                        currentBestMoves = [move];
+                        alpha = Math.max(alpha, score);
+                    } else if (score === currentBestScore) {
+                        currentBestMoves.push(move);
+                    }
                 }
+
+                bestScore = currentBestScore;
+                bestMoves = currentBestMoves;
             }
 
             selectedMove = bestMoves[Math.floor(Math.random() * bestMoves.length)];
@@ -743,8 +937,17 @@ export class ShogiGame {
 
         this.recordMove(`${pieceType}打`, move.toRow, move.toCol, 'cpu');
         this.currentPlayer = 'player';
+
+        // 盤面状態を保存
+        this.saveBoardState();
+
         this.renderBoard();
         this.updateUI();
+
+        // 詰み判定
+        if (this.isCheckmate('player')) {
+            this.endGame('cpu', 'checkmate');
+        }
     }
 
     // 合法手（移動・打ち込み）を全て取得
@@ -794,10 +997,37 @@ export class ShogiGame {
         return moves;
     }
 
-    // Minimax法（Alpha-Beta法）
+    // 盤面のハッシュキーを生成
+    getBoardHash() {
+        let hash = '';
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const piece = this.board[r][c];
+                if (piece) {
+                    hash += `${r}${c}${piece.type}${piece.owner[0]}`;
+                }
+            }
+        }
+        hash += '|' + this.cpuCaptured.sort().join('');
+        hash += '|' + this.playerCaptured.sort().join('');
+        return hash;
+    }
+
+    // Minimax法（Alpha-Beta法 + トランスポジションテーブル）
     minimax(depth, alpha, beta, isMaximizing) {
+        this.nodeCount++;
+
+        // トランスポジションテーブルの参照
+        const hash = this.getBoardHash() + `|${depth}|${isMaximizing}`;
+        const cached = this.transpositionTable.get(hash);
+        if (cached !== undefined) {
+            return cached;
+        }
+
         if (depth === 0) {
-            return this.evaluateBoard('cpu');
+            const score = this.evaluateBoard('cpu');
+            this.transpositionTable.set(hash, score);
+            return score;
         }
 
         const player = isMaximizing ? 'cpu' : 'player';
@@ -805,12 +1035,29 @@ export class ShogiGame {
 
         if (legalMoves.length === 0) {
             // 詰み
-            return isMaximizing ? -1000000 : 1000000; // 詰みは非常に大きなスコア差
+            const score = isMaximizing ? -1000000 + (4 - depth) : 1000000 - (4 - depth);
+            this.transpositionTable.set(hash, score);
+            return score;
         }
 
+        // 手の順序付け（駒取りを優先）
+        const pieceValues = {
+            '歩': 100, '香': 300, '桂': 400, '銀': 500, '金': 600, '角': 800, '飛': 1000,
+            '!と': 700, '!杏': 700, '!圭': 700, '!全': 700, '!馬': 1100, '!竜': 1300
+        };
+
+        const orderedMoves = [...legalMoves].sort((a, b) => {
+            const aVal = a.type === 'move' && this.board[a.toRow][a.toCol]
+                ? pieceValues[this.board[a.toRow][a.toCol].type] || 0 : 0;
+            const bVal = b.type === 'move' && this.board[b.toRow][b.toCol]
+                ? pieceValues[this.board[b.toRow][b.toCol].type] || 0 : 0;
+            return bVal - aVal;
+        });
+
+        let result;
         if (isMaximizing) {
             let maxEval = -Infinity;
-            for (const move of legalMoves) {
+            for (const move of orderedMoves) {
                 const undo = this.applyVirtualMove(move, player);
                 const evalScore = this.minimax(depth - 1, alpha, beta, false);
                 this.undoVirtualMove(undo);
@@ -819,10 +1066,10 @@ export class ShogiGame {
                 alpha = Math.max(alpha, evalScore);
                 if (beta <= alpha) break;
             }
-            return maxEval;
+            result = maxEval;
         } else {
             let minEval = Infinity;
-            for (const move of legalMoves) {
+            for (const move of orderedMoves) {
                 const undo = this.applyVirtualMove(move, player);
                 const evalScore = this.minimax(depth - 1, alpha, beta, true);
                 this.undoVirtualMove(undo);
@@ -831,18 +1078,82 @@ export class ShogiGame {
                 beta = Math.min(beta, evalScore);
                 if (beta <= alpha) break;
             }
-            return minEval;
+            result = minEval;
         }
+
+        this.transpositionTable.set(hash, result);
+        return result;
     }
 
     // 盤面評価関数（CPU視点）
     evaluateBoard(player) {
         const pieceValues = {
             '歩': 100, '香': 300, '桂': 400, '銀': 500, '金': 600, '角': 800, '飛': 1000, '王': 100000, '玉': 100000,
-            '!と': 700, '!杏': 700, '!圭': 700, '!全': 700, '!馬': 1000, '!竜': 1200
+            '!と': 700, '!杏': 700, '!圭': 700, '!全': 700, '!馬': 1100, '!竜': 1300
+        };
+
+        // 位置評価テーブル（前進ボーナス）
+        const positionBonus = {
+            '歩': [
+                [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [50, 50, 50, 50, 50, 50, 50, 50, 50],
+                [30, 30, 30, 40, 40, 40, 30, 30, 30],
+                [20, 20, 25, 30, 30, 30, 25, 20, 20],
+                [10, 10, 15, 20, 25, 20, 15, 10, 10],
+                [5, 5, 10, 15, 20, 15, 10, 5, 5],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0]
+            ],
+            '金': [
+                [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [20, 25, 30, 35, 35, 35, 30, 25, 20],
+                [15, 20, 25, 30, 30, 30, 25, 20, 15],
+                [10, 15, 20, 25, 25, 25, 20, 15, 10],
+                [5, 10, 15, 20, 20, 20, 15, 10, 5],
+                [0, 5, 10, 15, 15, 15, 10, 5, 0],
+                [0, 0, 5, 10, 10, 10, 5, 0, 0],
+                [-5, 0, 5, 5, 10, 5, 5, 0, -5],
+                [-10, -5, 0, 5, 5, 5, 0, -5, -10]
+            ],
+            '銀': [
+                [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [25, 30, 35, 35, 35, 35, 35, 30, 25],
+                [20, 25, 30, 30, 30, 30, 30, 25, 20],
+                [15, 20, 25, 25, 25, 25, 25, 20, 15],
+                [10, 15, 20, 20, 20, 20, 20, 15, 10],
+                [5, 10, 15, 15, 15, 15, 15, 10, 5],
+                [0, 5, 10, 10, 10, 10, 10, 5, 0],
+                [0, 0, 5, 5, 5, 5, 5, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0]
+            ],
+            '角': [
+                [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 5, 10, 10, 10, 10, 10, 5, 0],
+                [0, 10, 15, 15, 15, 15, 15, 10, 0],
+                [0, 10, 15, 20, 20, 20, 15, 10, 0],
+                [0, 10, 15, 20, 25, 20, 15, 10, 0],
+                [0, 10, 15, 20, 20, 20, 15, 10, 0],
+                [0, 10, 15, 15, 15, 15, 15, 10, 0],
+                [0, 5, 10, 10, 10, 10, 10, 5, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0]
+            ],
+            '飛': [
+                [5, 5, 5, 5, 10, 5, 5, 5, 5],
+                [10, 15, 15, 15, 20, 15, 15, 15, 10],
+                [5, 10, 10, 10, 15, 10, 10, 10, 5],
+                [5, 10, 10, 10, 15, 10, 10, 10, 5],
+                [5, 10, 10, 10, 15, 10, 10, 10, 5],
+                [5, 10, 10, 10, 15, 10, 10, 10, 5],
+                [5, 10, 10, 10, 15, 10, 10, 10, 5],
+                [10, 15, 15, 15, 20, 15, 15, 15, 10],
+                [5, 5, 5, 5, 10, 5, 5, 5, 5]
+            ]
         };
 
         let score = 0;
+        let cpuKingPos = null;
+        let playerKingPos = null;
 
         // 盤上の駒の評価
         for (let r = 0; r < 9; r++) {
@@ -851,11 +1162,28 @@ export class ShogiGame {
                 if (piece) {
                     let value = pieceValues[piece.type] || 0;
 
-                    // 位置による補正（中央に近いほど少し高く評価）
-                    // CPUは下側、プレイヤーは上側
-                    const rowBonus = piece.owner === 'cpu' ? r : (8 - r); // CPUはrowが大きいほど、playerはrowが小さいほど有利
-                    const colBonus = Math.abs(4 - c); // 中央に近いほど良い
-                    value += (rowBonus * 5) + ((4 - colBonus) * 5); // 適当な重み付け
+                    // 玉の位置を記録
+                    if (piece.type === '玉' || piece.type === '王') {
+                        if (piece.owner === 'cpu') {
+                            cpuKingPos = { row: r, col: c };
+                        } else {
+                            playerKingPos = { row: r, col: c };
+                        }
+                    }
+
+                    // 位置評価ボーナス（5倍の重み）
+                    const baseType = piece.type.startsWith('!') ? piece.type.substring(1) : piece.type;
+                    const bonusTable = positionBonus[baseType] || positionBonus['金'];
+                    if (bonusTable) {
+                        const evalRow = piece.owner === 'cpu' ? r : (8 - r);
+                        value += bonusTable[evalRow][c] * 5;
+                    }
+
+                    // 成駒の位置ボーナス（敵陣に近いほど価値上昇）
+                    if (piece.type.startsWith('!')) {
+                        const promotedBonus = piece.owner === 'cpu' ? r * 8 : (8 - r) * 8;
+                        value += promotedBonus;
+                    }
 
                     if (piece.owner === 'cpu') {
                         score += value;
@@ -866,20 +1194,129 @@ export class ShogiGame {
             }
         }
 
-        // 持ち駒の評価
+        // 駒の利き数を評価（機動性）
+        score += this.evaluateMobility('cpu') * 3;
+        score -= this.evaluateMobility('player') * 3;
+
+        // 玉の安全度を評価
+        if (cpuKingPos) {
+            score += this.evaluateKingSafety(cpuKingPos, 'cpu') * 10;
+        }
+        if (playerKingPos) {
+            score -= this.evaluateKingSafety(playerKingPos, 'player') * 10;
+        }
+
+        // 持ち駒の評価（持ち駒は打てる柔軟性があるため価値が高い）
         for (const p of this.cpuCaptured) {
-            score += (pieceValues[p] || 0) * 1.1; // 持ち駒は少し価値を高めに
+            score += (pieceValues[p] || 0) * 1.15;
         }
         for (const p of this.playerCaptured) {
-            score -= (pieceValues[p] || 0) * 1.1;
+            score -= (pieceValues[p] || 0) * 1.15;
         }
 
         // 王手がかかっているかどうかの評価
         if (this.isKingInCheck('player')) {
-            score += 500; // 相手に王手がかかっていると有利
+            score += 800;
         }
         if (this.isKingInCheck('cpu')) {
-            score -= 500; // 自分に王手がかかっていると不利
+            score -= 800;
+        }
+
+        return score;
+    }
+
+    // 駒の利き数を評価（機動性）
+    evaluateMobility(player) {
+        let mobility = 0;
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const piece = this.board[r][c];
+                if (piece && piece.owner === player) {
+                    const moves = this.getValidMoves(r, c, true);
+                    mobility += moves.length;
+                }
+            }
+        }
+        return mobility;
+    }
+
+    // 玉の安全度を評価
+    evaluateKingSafety(kingPos, player) {
+        let safety = 0;
+        const { row, col } = kingPos;
+
+        // 周囲8マスの守り駒をカウント
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                const nr = row + dr;
+                const nc = col + dc;
+                if (nr >= 0 && nr < 9 && nc >= 0 && nc < 9) {
+                    const piece = this.board[nr][nc];
+                    if (piece && piece.owner === player) {
+                        // 金・銀は守りとして優秀
+                        if (piece.type === '金' || piece.type === '銀' || piece.type === '!全') {
+                            safety += 15;
+                        } else if (piece.type.startsWith('!')) {
+                            safety += 10;
+                        } else {
+                            safety += 5;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 玉の位置による評価（端は危険、中段は柔軟性がある）
+        if (player === 'cpu') {
+            // CPUの玉は1-3段目が安全
+            if (row <= 2) safety += 20;
+            else if (row >= 6) safety -= 30; // 敵陣に近いと危険
+        } else {
+            // プレイヤーの玉は7-9段目が安全
+            if (row >= 6) safety += 20;
+            else if (row <= 2) safety -= 30;
+        }
+
+        // 中央列は危険（飛車に狙われやすい）
+        if (col === 4) safety -= 10;
+
+        return safety;
+    }
+
+    // 簡易評価関数（Medium難易度用、高速版）
+    evaluateBoardQuick(player) {
+        const pieceValues = {
+            '歩': 100, '香': 300, '桂': 400, '銀': 500, '金': 600, '角': 800, '飛': 1000, '王': 100000, '玉': 100000,
+            '!と': 700, '!杏': 700, '!圭': 700, '!全': 700, '!馬': 1100, '!竜': 1300
+        };
+
+        let score = 0;
+
+        // 盤上の駒の評価（位置評価なし）
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const piece = this.board[r][c];
+                if (piece) {
+                    const value = pieceValues[piece.type] || 0;
+                    // 前進ボーナス（簡易版）
+                    const advanceBonus = piece.owner === 'cpu' ? r * 3 : (8 - r) * 3;
+
+                    if (piece.owner === 'cpu') {
+                        score += value + advanceBonus;
+                    } else {
+                        score -= value + advanceBonus;
+                    }
+                }
+            }
+        }
+
+        // 持ち駒の評価
+        for (const p of this.cpuCaptured) {
+            score += (pieceValues[p] || 0) * 1.1;
+        }
+        for (const p of this.playerCaptured) {
+            score -= (pieceValues[p] || 0) * 1.1;
         }
 
         return score;
@@ -996,50 +1433,193 @@ export class ShogiGame {
     }
 
     updateUI() {
-        document.getElementById('turn-indicator').textContent =
-            this.currentPlayer === 'player' ? 'あなたの手番です' : 'CPUが考えています...';
+        // ターンインジケーターの更新
+        let turnText;
+        if (this.gameMode === 'pvp') {
+            turnText = this.currentPlayer === 'player' ? '☗ 先手の手番です' : '☖ 後手の手番です';
+        } else {
+            turnText = this.currentPlayer === 'player' ? 'あなたの手番です' : 'CPUが考えています...';
+        }
+        document.getElementById('turn-indicator').textContent = turnText;
 
-        // プレイヤーの持ち駒（クリック可能）
+        // 先手（プレイヤー）の持ち駒
         const playerCapturedEl = document.getElementById('player-captured');
+        const canSelectPlayer = !this.gameOver && this.currentPlayer === 'player';
         playerCapturedEl.innerHTML = this.playerCaptured.map((p, index) =>
-            `<div class="captured-piece ${this.selectedCapturedPiece === p && this.playerCaptured.indexOf(p) === index ? 'selected' : ''}"
-                  data-piece="${p}" data-index="${index}">${p}</div>`
+            `<div class="captured-piece ${this.selectedCapturedPiece === p && this.currentPlayer === 'player' ? 'selected' : ''} ${canSelectPlayer ? 'clickable' : ''}"
+                  data-piece="${p}" data-index="${index}" data-owner="player">${p}</div>`
         ).join('');
 
-        // 持ち駒にクリックイベントを追加
-        playerCapturedEl.querySelectorAll('.captured-piece').forEach(el => {
+        // 後手（CPU/対戦相手）の持ち駒
+        const cpuCapturedEl = document.getElementById('cpu-captured');
+        const canSelectCpu = !this.gameOver && this.currentPlayer === 'cpu' && this.gameMode === 'pvp';
+        cpuCapturedEl.innerHTML = this.cpuCaptured.map((p, index) =>
+            `<div class="captured-piece ${this.selectedCapturedPiece === p && this.currentPlayer === 'cpu' ? 'selected' : ''} ${canSelectCpu ? 'clickable' : ''}"
+                  data-piece="${p}" data-index="${index}" data-owner="cpu">${p}</div>`
+        ).join('');
+
+        // 持ち駒にクリックイベントを追加（両方の駒台）
+        const setupCapturedPieceClick = (el) => {
             el.addEventListener('click', () => {
-                if (this.currentPlayer === 'player' && !this.gameOver) {
-                    const pieceType = el.dataset.piece;
+                if (this.gameOver) return;
+                const owner = el.dataset.owner;
+                // 自分のターンで自分の持ち駒のみ選択可能
+                if (this.currentPlayer !== owner) return;
+                // CPUモードでCPUの持ち駒は選択不可
+                if (this.gameMode === 'cpu' && owner === 'cpu') return;
 
-                    // 既に選択されている場合は解除
-                    if (this.selectedCapturedPiece === pieceType) {
-                        this.selectedCapturedPiece = null;
-                    } else {
-                        this.selectedCapturedPiece = pieceType;
-                        this.selectedPiece = null;
-                        this.selectedCell = null;
-                        this.clearHighlights();
-                    }
+                const pieceType = el.dataset.piece;
 
-                    this.updateUI();
+                // 既に選択されている場合は解除
+                if (this.selectedCapturedPiece === pieceType) {
+                    this.selectedCapturedPiece = null;
+                } else {
+                    this.selectedCapturedPiece = pieceType;
+                    this.selectedPiece = null;
+                    this.selectedCell = null;
+                    this.clearHighlights();
                 }
-            });
-        });
 
-        // CPUの持ち駒（表示のみ）
-        document.getElementById('cpu-captured').innerHTML =
-            this.cpuCaptured.map(p => `<div class="captured-piece">${p}</div>`).join('');
+                this.updateUI();
+            });
+        };
+
+        playerCapturedEl.querySelectorAll('.captured-piece').forEach(setupCapturedPieceClick);
+        cpuCapturedEl.querySelectorAll('.captured-piece').forEach(setupCapturedPieceClick);
     }
 
-    endGame(winner) {
+    endGame(winner, reason = 'resign') {
         this.gameOver = true;
-        const resultText = winner === 'player' ? 'あなたの勝ちです！' : 'CPUの勝ちです';
+        let resultText;
+
+        const winnerName = this.gameMode === 'pvp'
+            ? (winner === 'player' ? '☗ 先手' : '☖ 後手')
+            : (winner === 'player' ? 'あなた' : 'CPU');
+
+        const loserName = this.gameMode === 'pvp'
+            ? (winner === 'player' ? '☖ 後手' : '☗ 先手')
+            : (winner === 'player' ? 'CPU' : 'あなた');
+
+        if (reason === 'checkmate') {
+            resultText = `詰みです！${winnerName}の勝ちです！`;
+        } else if (reason === 'capture') {
+            resultText = `玉を取りました！${winnerName}の勝ちです！`;
+        } else {
+            resultText = `${loserName}が投了しました。${winnerName}の勝ちです！`;
+        }
+
+        // 対局履歴を保存
+        this.saveToHistory(winner, reason);
+
         document.getElementById('game-result').textContent = resultText;
         document.getElementById('game-over').classList.remove('hidden');
     }
 
     resign() {
-        this.endGame('cpu');
+        // 現在のプレイヤーが投了する（相手の勝ち）
+        const winner = this.currentPlayer === 'player' ? 'cpu' : 'player';
+        this.endGame(winner, 'resign');
+    }
+
+    // KIF形式で棋譜をエクスポート
+    exportKIF() {
+        const lines = [];
+
+        // ヘッダー
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+        lines.push(`# ---- 棋譜ファイル ----`);
+        lines.push(`開始日時：${dateStr}`);
+
+        if (this.gameMode === 'pvp') {
+            lines.push(`先手：先手`);
+            lines.push(`後手：後手`);
+        } else {
+            lines.push(`先手：あなた`);
+            lines.push(`後手：CPU（${this.difficulty}）`);
+        }
+
+        lines.push(`手合割：平手`);
+        lines.push(`手数----指手---------消費時間--`);
+
+        // 指し手
+        this.moveHistory.forEach((move, index) => {
+            const num = String(index + 1).padStart(4, ' ');
+            const playerMark = move.player === 'player' ? '▲' : '△';
+            lines.push(`${num} ${playerMark}${move.text.trim()}`);
+        });
+
+        // 結果
+        if (this.gameOver) {
+            const lastMoveNum = this.moveHistory.length + 1;
+            lines.push(`${String(lastMoveNum).padStart(4, ' ')} 投了`);
+        }
+
+        return lines.join('\n');
+    }
+
+    // 棋譜をダウンロード
+    downloadKIF() {
+        const kif = this.exportKIF();
+        const blob = new Blob([kif], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const now = new Date();
+        const filename = `shogi_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}.kif`;
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // 対局履歴をlocalStorageに保存
+    saveToHistory(winner, reason) {
+        try {
+            const history = JSON.parse(localStorage.getItem('shogiHistory') || '[]');
+
+            const gameRecord = {
+                id: Date.now(),
+                date: new Date().toISOString(),
+                gameMode: this.gameMode,
+                difficulty: this.difficulty,
+                winner: winner,
+                reason: reason,
+                moves: this.moveHistory.length,
+                kif: this.exportKIF()
+            };
+
+            history.unshift(gameRecord);
+
+            // 最大50件まで保存
+            if (history.length > 50) {
+                history.length = 50;
+            }
+
+            localStorage.setItem('shogiHistory', JSON.stringify(history));
+        } catch (error) {
+            // localStorageが使えない場合は無視
+        }
+    }
+
+    // 対局履歴を取得
+    static getHistory() {
+        try {
+            return JSON.parse(localStorage.getItem('shogiHistory') || '[]');
+        } catch (error) {
+            return [];
+        }
+    }
+
+    // 対局履歴をクリア
+    static clearHistory() {
+        try {
+            localStorage.removeItem('shogiHistory');
+        } catch (error) {
+            // localStorageが使えない場合は無視
+        }
     }
 }

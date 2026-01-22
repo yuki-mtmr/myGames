@@ -76,10 +76,41 @@ header h1 {
     font-size: 2rem;
 }
 
+.mode-select {
+    margin-bottom: 25px;
+    padding-bottom: 25px;
+    border-bottom: 1px solid #eee;
+}
+
+.mode-select h3,
 .difficulty-select h3 {
     color: #666;
     margin-bottom: 20px;
     font-size: 1.2rem;
+}
+
+.mode-btn {
+    display: inline-block;
+    margin: 10px;
+    padding: 15px 40px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+}
+
+.mode-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(17, 153, 142, 0.6);
+}
+
+.mode-btn:active {
+    transform: translateY(-1px);
 }
 
 .difficulty-btn {
@@ -186,6 +217,31 @@ header h1 {
     margin-bottom: 15px;
 }
 
+.game-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+#undo-btn {
+    padding: 12px 30px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+#undo-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
 #resign-btn,
 #restart-btn {
     padding: 12px 30px;
@@ -287,6 +343,26 @@ header h1 {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    margin-bottom: 15px;
+}
+
+.export-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.export-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.6);
 }
 
 .move-item {
@@ -391,6 +467,20 @@ header h1 {
     height: 12px;
     background: rgba(76, 175, 80, 0.6);
     border-radius: 50%;
+}
+
+.cell.in-check {
+    background-color: rgba(255, 0, 0, 0.4);
+    animation: check-pulse 1s ease-in-out infinite;
+}
+
+@keyframes check-pulse {
+    0%, 100% {
+        background-color: rgba(255, 0, 0, 0.4);
+    }
+    50% {
+        background-color: rgba(255, 0, 0, 0.6);
+    }
 }
 
 .piece {
