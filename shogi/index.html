@@ -36,6 +36,7 @@
                     <button id="undo-btn" class="action-btn">待った</button>
                     <button id="save-btn" class="action-btn">保存</button>
                     <button id="export-btn" class="action-btn">棋譜出力</button>
+                    <button id="eval-toggle-btn" class="action-btn">形勢表示</button>
                     <button id="resign-btn">投了</button>
                 </div>
             </div>
@@ -54,6 +55,22 @@
                     <div class="player-info">
                         <h3>☗ あなた（先手）</h3>
                         <div id="player-captured" class="captured-pieces player-stand"></div>
+                    </div>
+                </div>
+
+                <div class="evaluation-panel hidden" id="evaluation-panel">
+                    <h3>形勢判断</h3>
+                    <div class="eval-bar-container">
+                        <span class="eval-label player-label">先手</span>
+                        <div class="eval-bar">
+                            <div class="eval-bar-fill" id="eval-bar-fill"></div>
+                            <div class="eval-bar-center"></div>
+                        </div>
+                        <span class="eval-label cpu-label">後手</span>
+                    </div>
+                    <div class="eval-details">
+                        <span id="eval-percentage">50% - 50%</span>
+                        <span id="eval-score" class="eval-score even-advantage">0</span>
                     </div>
                 </div>
 

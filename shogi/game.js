@@ -1600,6 +1600,9 @@ export class ShogiGame {
         document.getElementById('turn-indicator').textContent =
             this.currentPlayer === 'player' ? 'あなたの手番です' : 'CPUが考えています...';
 
+        // 評価表示を更新
+        this.updateEvaluationDisplay();
+
         // プレイヤーの持ち駒（クリック可能）
         const playerCapturedEl = document.getElementById('player-captured');
         playerCapturedEl.innerHTML = this.playerCaptured.map((p, index) =>
@@ -1820,5 +1823,49 @@ export class ShogiGame {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
+
+    // プレイヤー視点の評価を取得
+    // 戻り値: { score, percentage, advantage }
+    getPlayerEvaluation() {
+        const cpuScore = this.evaluateBoard('cpu');
+        const playerScore = -cpuScore; // 反転（正=先手有利）
+
+        // tanh関数でパーセンテージに変換
+        const scaledScore = Math.tanh(playerScore / 2000);
+        const percentage = Math.round((scaledScore + 1) * 50);
+
+        let advantage = 'even';
+        if (playerScore > 100) advantage = 'player';
+        else if (playerScore < -100) advantage = 'cpu';
+
+        return { score: playerScore, percentage, advantage };
+    }
+
+    // 評価表示を更新
+    updateEvaluationDisplay() {
+        const evalBarFill = document.getElementById('eval-bar-fill');
+        const evalPercentage = document.getElementById('eval-percentage');
+        const evalScore = document.getElementById('eval-score');
+
+        if (!evalBarFill) return;
+
+        const evaluation = this.getPlayerEvaluation();
+
+        // バー幅を更新
+        evalBarFill.style.width = `${evaluation.percentage}%`;
+
+        // パーセンテージ表示
+        const cpuPct = 100 - evaluation.percentage;
+        evalPercentage.textContent = `${evaluation.percentage}% - ${cpuPct}%`;
+
+        // スコア表示
+        const scoreText = evaluation.score >= 0
+            ? `+${Math.abs(evaluation.score)}`
+            : `-${Math.abs(evaluation.score)}`;
+        evalScore.textContent = scoreText;
+
+        // スタイル更新
+        evalScore.className = `eval-score ${evaluation.advantage}-advantage`;
     }
 }

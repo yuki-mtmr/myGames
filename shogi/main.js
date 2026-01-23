@@ -81,6 +81,19 @@ document.addEventListener('DOMContentLoaded', () => {
             game.downloadKifu();
         }
     });
+
+    // 形勢表示トグルボタン
+    document.getElementById('eval-toggle-btn').addEventListener('click', () => {
+        const panel = document.getElementById('evaluation-panel');
+        const btn = document.getElementById('eval-toggle-btn');
+        panel.classList.toggle('hidden');
+        btn.classList.toggle('active');
+
+        // 表示時に評価を更新
+        if (!panel.classList.contains('hidden') && game) {
+            game.updateEvaluationDisplay();
+        }
+    });
 });
 
 function startGame(difficulty) {
