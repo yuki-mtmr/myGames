@@ -10,7 +10,40 @@ import {
 let game = null;
 let engineInitialized = false;
 
+// テーマ管理
+function initializeTheme() {
+    const savedTheme = localStorage.getItem('shogi-theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+    setTheme(theme);
+}
+
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('shogi-theme', theme);
+    updateThemeIcon(theme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+}
+
+function updateThemeIcon(theme) {
+    const icon = document.querySelector('.theme-icon');
+    if (icon) {
+        icon.textContent = theme === 'dark' ? '🌙' : '☀️';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    // テーマ初期化
+    initializeTheme();
+
+    // テーマ切替ボタン
+    document.getElementById('theme-toggle')?.addEventListener('click', toggleTheme);
+
     // ブラウザ互換性チェックとUI初期化
     initializeEngineUI();
 
