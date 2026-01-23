@@ -14,14 +14,60 @@
         </header>
 
         <div id="game-setup" class="modal">
-            <div class="modal-content">
+            <div class="modal-content setup-modal">
                 <h2>対局設定</h2>
-                <div class="difficulty-select">
-                    <h3>CPUの強さを選択</h3>
-                    <button class="difficulty-btn" data-level="easy">初級</button>
-                    <button class="difficulty-btn" data-level="medium">中級</button>
-                    <button class="difficulty-btn" data-level="hard">上級</button>
+
+                <!-- AIエンジン選択 -->
+                <div class="setting-section" id="engine-select">
+                    <h3>AIエンジン</h3>
+                    <div class="engine-buttons">
+                        <button class="engine-btn" data-engine="auto">
+                            <span class="engine-name">自動</span>
+                            <span class="engine-desc">最適なAIを自動選択</span>
+                        </button>
+                        <button class="engine-btn" data-engine="yaneuraou">
+                            <span class="engine-name">やねうら王</span>
+                            <span class="engine-desc">世界最強クラスAI</span>
+                        </button>
+                        <button class="engine-btn" data-engine="builtin">
+                            <span class="engine-name">内蔵AI</span>
+                            <span class="engine-desc">全ブラウザ対応</span>
+                        </button>
+                    </div>
+                    <div id="compat-warning" class="compat-warning hidden">
+                        <span class="warning-icon">⚠️</span>
+                        <span class="warning-text"></span>
+                    </div>
                 </div>
+
+                <!-- AI強さ選択 -->
+                <div class="setting-section" id="strength-select">
+                    <h3>AIの強さ</h3>
+                    <div class="strength-buttons">
+                        <button class="strength-btn" data-strength="beginner">
+                            <span class="strength-name">入門</span>
+                            <span class="strength-desc">初めての方向け</span>
+                        </button>
+                        <button class="strength-btn" data-strength="intermediate">
+                            <span class="strength-name">初級</span>
+                            <span class="strength-desc">ルールを覚えた方向け</span>
+                        </button>
+                        <button class="strength-btn" data-strength="advanced">
+                            <span class="strength-name">中級</span>
+                            <span class="strength-desc">ある程度指せる方向け</span>
+                        </button>
+                        <button class="strength-btn" data-strength="expert">
+                            <span class="strength-name">上級</span>
+                            <span class="strength-desc">本気で対局したい方向け</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 対局開始ボタン -->
+                <div class="start-game-section">
+                    <button id="start-btn" class="start-btn">対局開始</button>
+                </div>
+
                 <div id="load-game-section" class="load-game-section hidden">
                     <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
                     <button id="load-btn" class="difficulty-btn load-btn">続きから再開</button>

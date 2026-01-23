@@ -881,3 +881,206 @@ header h1 {
         font-size: 0.85rem;
     }
 }
+
+/* =========================
+   AI Engine Selection Styles
+   ========================= */
+
+.setup-modal {
+    max-width: 600px;
+    width: 90%;
+}
+
+.setting-section {
+    margin-bottom: 25px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 12px;
+}
+
+.setting-section h3 {
+    color: #333;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+/* Engine Selection Buttons */
+.engine-buttons,
+.strength-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.engine-btn,
+.strength-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 20px;
+    min-width: 120px;
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.engine-btn:hover:not(.disabled),
+.strength-btn:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.engine-btn.selected,
+.strength-btn.selected {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.engine-btn.selected .engine-desc,
+.strength-btn.selected .strength-desc {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.engine-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f5f5f5;
+}
+
+.engine-name,
+.strength-name {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 4px;
+}
+
+.engine-desc,
+.strength-desc {
+    font-size: 0.75rem;
+    color: #666;
+}
+
+/* Compatibility Warning */
+.compat-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 15px;
+    padding: 10px 15px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: #856404;
+}
+
+/* Start Game Button */
+.start-game-section {
+    margin-top: 25px;
+    text-align: center;
+}
+
+.start-btn {
+    display: inline-block;
+    padding: 18px 60px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+}
+
+.start-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(17, 153, 142, 0.6);
+}
+
+.start-btn:active {
+    transform: translateY(-1px);
+}
+
+.compat-warning.hidden {
+    display: none;
+}
+
+.warning-icon {
+    font-size: 1.2rem;
+}
+
+/* Thinking Indicator */
+#turn-indicator.thinking {
+    color: #f5576c;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Responsive Adjustments for AI Selection */
+@media (max-width: 600px) {
+    .setup-modal {
+        padding: 25px 15px;
+    }
+
+    .engine-buttons,
+    .strength-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .engine-btn,
+    .strength-btn {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 10px;
+        min-width: auto;
+        width: 100%;
+    }
+
+    .engine-name,
+    .strength-name {
+        min-width: 80px;
+    }
+}
+
+@media (max-width: 480px) {
+    .setting-section {
+        padding: 10px;
+        margin-bottom: 15px;
+    }
+
+    .setting-section h3 {
+        font-size: 1rem;
+        margin-bottom: 10px;
+    }
+
+    .engine-btn,
+    .strength-btn {
+        padding: 10px 15px;
+    }
+
+    .engine-name,
+    .strength-name {
+        font-size: 0.9rem;
+    }
+
+    .engine-desc,
+    .strength-desc {
+        font-size: 0.7rem;
+    }
+}

@@ -1,3 +1,6 @@
+// AI Engine imports
+import { SfenConverter, MoveConverter, aiEngineManager, ENGINE_TYPES, STRENGTH_LEVELS } from './src/ai/index.js';
+
 // 駒の位置価値テーブル（PST: Piece-Square Tables）
 // CPUは上側（row=0）から下側（row=8）へ攻める
 const PIECE_SQUARE_TABLES = {
@@ -175,6 +178,13 @@ export class ShogiGame {
         this.transpositionTable = new Map();
         this.ttMaxSize = 100000;
 
+        // 外部AIエンジン関連
+        this.useExternalEngine = false;  // 外部エンジン使用フラグ
+        this.aiEngine = null;            // AIEngineManager参照
+        this.aiStrength = STRENGTH_LEVELS.INTERMEDIATE;
+        this.cpuThinking = false;        // CPU思考中フラグ
+        this.moveCount = 1;              // 手数カウント
+
         this.setupAudioContext();
         this.renderBoard();
         this.updateUI();
@@ -185,6 +195,43 @@ export class ShogiGame {
         if (!savedState) {
             this.recordPosition();
         }
+    }
+
+    /**
+     * 外部AIエンジンを設定
+     * @param {AIEngineManager} engineManager
+     * @param {string} strength - 強さ設定
+     */
+    setAIEngine(engineManager, strength = STRENGTH_LEVELS.INTERMEDIATE) {
+        this.aiEngine = engineManager;
+        this.aiStrength = strength;
+        this.useExternalEngine = true;
+
+        // エンジンマネージャーにゲーム参照を設定
+        if (engineManager) {
+            engineManager.setGame(this);
+        }
+    }
+
+    /**
+     * 内蔵AIに切り替え
+     */
+    useBuiltinAI() {
+        this.useExternalEngine = false;
+    }
+
+    /**
+     * 現在のSFEN文字列を取得
+     * @returns {string}
+     */
+    getSfen() {
+        return SfenConverter.boardToSfen(
+            this.board,
+            this.playerCaptured,
+            this.cpuCaptured,
+            this.currentPlayer,
+            this.moveCount
+        );
     }
 
     setupAudioContext() {
@@ -1105,9 +1152,78 @@ export class ShogiGame {
         this.checkGameEndConditions();
     }
 
-    cpuTurn() {
+    async cpuTurn() {
         if (this.gameOver) return;
 
+        this.cpuThinking = true;
+        this.updateThinkingIndicator(true);
+
+        try {
+            // 外部エンジンを使用する場合
+            if (this.useExternalEngine && this.aiEngine?.currentEngine?.isReady()) {
+                await this.cpuTurnWithExternalEngine();
+            } else {
+                // 内蔵AIを使用
+                this.cpuTurnWithBuiltinAI();
+            }
+        } catch (error) {
+            console.warn('External engine error, falling back to builtin AI:', error);
+            // フォールバック：内蔵AIを使用
+            this.cpuTurnWithBuiltinAI();
+        } finally {
+            this.cpuThinking = false;
+            this.updateThinkingIndicator(false);
+        }
+    }
+
+    /**
+     * 外部エンジンを使ってCPUの手を決定
+     * @private
+     */
+    async cpuTurnWithExternalEngine() {
+        const legalMoves = this.getAllLegalMoves('cpu');
+
+        if (legalMoves.length === 0) {
+            this.endGame('player');
+            return;
+        }
+
+        try {
+            // 現在の局面をSFEN形式で取得
+            const sfen = this.getSfen();
+
+            // エンジンから最善手を取得
+            const result = await this.aiEngine.getBestMove(sfen);
+
+            if (!result || !result.move) {
+                throw new Error('No valid move returned from engine');
+            }
+
+            // USI形式からinternal形式に変換
+            const move = MoveConverter.fromUsi(result.move, 'cpu');
+
+            // 指し手を検証
+            const isValid = this.validateMove(move, legalMoves);
+
+            if (!isValid) {
+                console.warn('Invalid move from engine:', result.move);
+                throw new Error('Invalid move from engine');
+            }
+
+            // 手を実行
+            this.executeAIMove(move);
+
+        } catch (error) {
+            console.error('External engine failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 内蔵AIでCPUの手を決定
+     * @private
+     */
+    cpuTurnWithBuiltinAI() {
         // 全ての合法手（盤上の移動 + 持ち駒）を取得
         const legalMoves = this.getAllLegalMoves('cpu');
 
@@ -1169,6 +1285,63 @@ export class ShogiGame {
         } else {
             // 持ち駒を打つ処理（CPU用）
             this.executeCpuDrop(selectedMove);
+        }
+    }
+
+    /**
+     * 指し手を検証
+     * @private
+     */
+    validateMove(move, legalMoves) {
+        if (move.type === 'drop') {
+            return legalMoves.some(m =>
+                m.type === 'drop' &&
+                m.toRow === move.toRow &&
+                m.toCol === move.toCol &&
+                (m.piece === move.piece || m.pieceType === move.pieceType)
+            );
+        } else {
+            return legalMoves.some(m =>
+                m.type === 'move' &&
+                m.fromRow === move.fromRow &&
+                m.fromCol === move.fromCol &&
+                m.toRow === move.toRow &&
+                m.toCol === move.toCol
+            );
+        }
+    }
+
+    /**
+     * AI（外部エンジン）の指し手を実行
+     * @private
+     */
+    executeAIMove(move) {
+        if (move.type === 'move') {
+            this.makeMove(move.fromRow, move.fromCol, move.toRow, move.toCol, move.promote);
+        } else {
+            // 持ち駒を打つ
+            this.executeCpuDrop({
+                type: 'drop',
+                piece: move.piece || move.pieceType,
+                toRow: move.toRow,
+                toCol: move.toCol
+            });
+        }
+    }
+
+    /**
+     * 思考中表示を更新
+     * @private
+     */
+    updateThinkingIndicator(thinking) {
+        const indicator = document.getElementById('turn-indicator');
+        if (indicator) {
+            if (thinking) {
+                indicator.textContent = 'CPU思考中...';
+                indicator.classList.add('thinking');
+            } else {
+                this.updateUI();
+            }
         }
     }
 
