@@ -22,13 +22,22 @@
                     <button class="difficulty-btn" data-level="medium">中級</button>
                     <button class="difficulty-btn" data-level="hard">上級</button>
                 </div>
+                <div id="load-game-section" class="load-game-section hidden">
+                    <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+                    <button id="load-btn" class="difficulty-btn load-btn">続きから再開</button>
+                </div>
             </div>
         </div>
 
         <div id="game-container">
             <div class="game-status">
                 <p id="turn-indicator">あなたの手番です</p>
-                <button id="resign-btn">投了</button>
+                <div class="game-buttons">
+                    <button id="undo-btn" class="action-btn">待った</button>
+                    <button id="save-btn" class="action-btn">保存</button>
+                    <button id="export-btn" class="action-btn">棋譜出力</button>
+                    <button id="resign-btn">投了</button>
+                </div>
             </div>
 
             <div class="game-main">
