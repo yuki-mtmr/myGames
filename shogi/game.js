@@ -483,6 +483,10 @@ export class ShogiGame {
                 this.clearHighlights();
 
                 if (!this.gameOver) {
+                    if (this.replayMode) {
+                        this.onReplayPlayerMove?.();
+                        return;
+                    }
                     setTimeout(() => this.cpuTurn(), 500);
                 }
             }
@@ -784,6 +788,12 @@ export class ShogiGame {
     // 引き分け終了
     endGameDraw(reason) {
         this.gameOver = true;
+
+        if (this.replayMode) {
+            this.onReplayPlayerMove?.();
+            return;
+        }
+
         const resultText = `引き分け（${reason}）`;
 
         if (this.renderer) {
@@ -1227,6 +1237,10 @@ export class ShogiGame {
         }
 
         if (!this.gameOver && this.currentPlayer === 'cpu') {
+            if (this.replayMode) {
+                this.onReplayPlayerMove?.();
+                return;
+            }
             setTimeout(() => this.cpuTurn(), 500);
         }
     }
@@ -2021,6 +2035,13 @@ export class ShogiGame {
 
     endGame(winner, reason = '') {
         this.gameOver = true;
+
+        // 再演モードでは終局モーダルを出さず、セッション側に通知する
+        if (this.replayMode) {
+            this.onReplayPlayerMove?.();
+            return;
+        }
+
         let resultText = winner === 'player' ? 'あなたの勝ちです！' : 'CPUの勝ちです';
         if (reason) {
             resultText += `（${reason}）`;

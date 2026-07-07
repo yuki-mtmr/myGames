@@ -10,6 +10,7 @@ import { explainMistake } from '../analysis/MoveExplainer.js';
 import { tagPhase } from '../training/MistakeTagger.js';
 import { MistakeStore } from '../storage/MistakeStore.js';
 import { trainingConfig } from '../config/trainingConfig.js';
+import { startReplay } from './ReplayMode.js';
 
 const SEVERITY_LABELS = {
     inaccuracy: { text: '疑問手', mark: '?!', className: 'severity-inaccuracy' },
@@ -67,7 +68,17 @@ export function setupAnalysisPanel({ getGame, engineManager }) {
             );
             const playerMistakes = result.mistakes.filter(m => m.mover === 'player');
             persistMistakes(playerMistakes);
-            renderResult(result, playerMistakes);
+            renderResult(result, playerMistakes, (mistake) => {
+                hide(panel);
+                startReplay(mistake, {
+                    engine,
+                    onExit: () => {
+                        // 元対局の最終局面と操作ハンドラを復元してから一覧へ戻る
+                        getGame()?.renderBoard();
+                        show(panel);
+                    },
+                });
+            });
         } catch (error) {
             console.error('Game analysis failed:', error);
             renderError('解析中にエラーが発生しました。もう一度お試しください。');
@@ -124,7 +135,7 @@ function renderError(message) {
     document.getElementById('mistake-list').innerHTML = '';
 }
 
-function renderResult(result, playerMistakes) {
+function renderResult(result, playerMistakes, onReplayRequest) {
     hide(document.getElementById('analysis-progress'));
     const resultEl = document.getElementById('analysis-result');
     show(resultEl);
@@ -160,6 +171,13 @@ function renderResult(result, playerMistakes) {
         body.textContent = explainMistake({ ...m, bestMoveUsi: m.bestMove });
 
         item.append(head, body);
+
+        const replayBtn = document.createElement('button');
+        replayBtn.className = 'replay-btn';
+        replayBtn.textContent = 'この局面を再演する';
+        replayBtn.addEventListener('click', () => onReplayRequest?.(m));
+        item.appendChild(replayBtn);
+
         list.appendChild(item);
     }
 }
