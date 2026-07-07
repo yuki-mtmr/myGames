@@ -11,6 +11,8 @@ import { setupAnalysisPanel } from './src/ui/AnalysisPanel.js';
 
 let game = null;
 let engineInitialized = false;
+let currentRenderer = null;
+let viewMode = localStorage.getItem('shogi-view-mode') || '2d';
 
 // テーマ管理
 function initializeTheme() {
@@ -39,12 +41,71 @@ function updateThemeIcon(theme) {
     }
 }
 
+// ビューモード管理
+function initializeViewMode() {
+    updateViewModeUI();
+}
+
+function updateViewModeUI() {
+    const btn = document.getElementById('view-mode-toggle');
+    if (btn) {
+        const icon = btn.querySelector('.view-icon');
+        if (icon) {
+            icon.textContent = viewMode === '3d' ? '2D' : '3D';
+        }
+        btn.classList.toggle('active', viewMode === '3d');
+    }
+}
+
+function toggleViewMode() {
+    viewMode = viewMode === '2d' ? '3d' : '2d';
+    localStorage.setItem('shogi-view-mode', viewMode);
+    updateViewModeUI();
+    initializeRenderer();
+}
+
+function initializeRenderer() {
+    // 既存のレンダラーを破棄
+    if (currentRenderer) {
+        currentRenderer.dispose();
+        currentRenderer = null;
+    }
+
+    if (viewMode === '3d') {
+        // 3Dモード
+        document.getElementById('game-container')?.classList.add('hidden');
+        document.getElementById('three-container')?.classList.remove('hidden');
+
+        const canvas = document.getElementById('three-canvas');
+        if (canvas) {
+            currentRenderer = new ThreeJSRenderer(canvas);
+        }
+    } else {
+        // 2Dモード
+        document.getElementById('three-container')?.classList.add('hidden');
+        document.getElementById('game-container')?.classList.remove('hidden');
+
+        currentRenderer = new DOMRenderer();
+    }
+
+    // ゲームにレンダラーを設定
+    if (game && currentRenderer) {
+        game.setRenderer(currentRenderer);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // テーマ初期化
     initializeTheme();
 
     // テーマ切替ボタン
     document.getElementById('theme-toggle')?.addEventListener('click', toggleTheme);
+
+    // ビューモード初期化
+    initializeViewMode();
+
+    // ビューモード切替ボタン
+    document.getElementById('view-mode-toggle')?.addEventListener('click', toggleViewMode);
 
     // ブラウザ互換性チェックとUI初期化
     initializeEngineUI();
@@ -153,6 +214,30 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.add('selected');
         });
     });
+
+    // 3Dモード用のボタン
+    document.getElementById('undo-btn-3d')?.addEventListener('click', () => {
+        if (game) {
+            const success = game.undo();
+            if (!success) {
+                showMessage('待ったできません');
+            }
+        }
+    });
+
+    document.getElementById('save-btn-3d')?.addEventListener('click', () => {
+        if (game) {
+            game.saveGame();
+            showMessage('ゲームを保存しました');
+            document.getElementById('load-game-section')?.classList.remove('hidden');
+        }
+    });
+
+    document.getElementById('resign-btn-3d')?.addEventListener('click', () => {
+        if (game && !game.gameOver) {
+            document.getElementById('resign-confirm')?.classList.remove('hidden');
+        }
+    });
 });
 
 /**
@@ -256,6 +341,9 @@ async function startGame() {
     // ゲームインスタンスを作成
     game = new ShogiGame(difficulty);
 
+    // レンダラーを初期化
+    initializeRenderer();
+
     // 外部エンジンの初期化（必要な場合）
     if (engineType !== 'builtin') {
         try {
@@ -311,6 +399,9 @@ async function loadSavedGame() {
     if (savedState) {
         document.getElementById('game-setup').classList.add('hidden');
         game = new ShogiGame(savedState.difficulty, savedState);
+
+        // レンダラーを初期化
+        initializeRenderer();
 
         // エンジン設定を取得して初期化
         const engineType = getSelectedEngine();

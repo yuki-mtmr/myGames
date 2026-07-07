@@ -187,6 +187,9 @@ export class ShogiGame {
         this.cpuThinking = false;        // CPU思考中フラグ
         this.moveCount = 1;              // 手数カウント
 
+        // レンダラー（2D/3D切り替え用）
+        this.renderer = null;
+
         this.setupAudioContext();
         this.renderBoard();
         this.updateUI();
@@ -220,6 +223,44 @@ export class ShogiGame {
      */
     useBuiltinAI() {
         this.useExternalEngine = false;
+    }
+
+    /**
+     * レンダラーを設定
+     * @param {Renderer} renderer - DOMRenderer または ThreeJSRenderer
+     */
+    setRenderer(renderer) {
+        this.renderer = renderer;
+
+        // レンダラーにイベントコールバックを設定
+        if (renderer) {
+            renderer.onCellClick((row, col) => this.handleCellClick(row, col));
+            renderer.onCapturedPieceClick((pieceType) => this.handleCapturedPieceClick(pieceType));
+
+            // 初期描画
+            this.renderBoard();
+            this.updateUI();
+            this.updateMoveHistory();
+        }
+    }
+
+    /**
+     * 持ち駒クリックハンドラ（レンダラーから呼ばれる）
+     */
+    handleCapturedPieceClick(pieceType) {
+        if (this.currentPlayer !== 'player' || this.gameOver) return;
+
+        // 既に選択されている場合は解除
+        if (this.selectedCapturedPiece === pieceType) {
+            this.selectedCapturedPiece = null;
+        } else {
+            this.selectedCapturedPiece = pieceType;
+            this.selectedPiece = null;
+            this.selectedCell = null;
+            this.clearHighlights();
+        }
+
+        this.updateUI();
     }
 
     /**
@@ -329,8 +370,20 @@ export class ShogiGame {
     }
 
     renderBoard() {
+        // レンダラーが設定されていればそちらを使用
+        if (this.renderer) {
+            this.renderer.renderBoard(this.board, this.lastMove);
+            return;
+        }
+
+        // フォールバック: 直接DOM操作（レンダラー未設定時）
         const boardElement = document.getElementById('shogi-board');
+        if (!boardElement) return;
+
         boardElement.innerHTML = '';
+
+        // 座標表示を更新
+        this.renderBoardCoordinates();
 
         for (let row = 0; row < 9; row++) {
             for (let col = 0; col < 9; col++) {
@@ -356,7 +409,7 @@ export class ShogiGame {
                     if (piece.promoted) {
                         pieceElement.classList.add('promoted');
                     }
-                    pieceElement.textContent = piece.promoted ? piece.type.substring(1) : piece.type;
+                    pieceElement.textContent = this.getPieceDisplay(piece);
                     cell.appendChild(pieceElement);
                 }
 
@@ -364,6 +417,56 @@ export class ShogiGame {
                 boardElement.appendChild(cell);
             }
         }
+    }
+
+    /**
+     * 盤面の座標を描画
+     */
+    renderBoardCoordinates() {
+        const rowCoords = document.getElementById('board-coords-row');
+        const colCoords = document.getElementById('board-coords-col');
+
+        if (rowCoords && rowCoords.children.length === 0) {
+            // 横座標: 9-1 (右から左)
+            for (let i = 9; i >= 1; i--) {
+                const span = document.createElement('span');
+                span.textContent = i;
+                rowCoords.appendChild(span);
+            }
+        }
+
+        if (colCoords && colCoords.children.length === 0) {
+            // 縦座標: 一〜九 (上から下)
+            const kanjiNumbers = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+            for (let i = 0; i < 9; i++) {
+                const span = document.createElement('span');
+                span.textContent = kanjiNumbers[i];
+                colCoords.appendChild(span);
+            }
+        }
+    }
+
+    /**
+     * 駒の表示文字を取得（シングルキャラクター）
+     */
+    getPieceDisplay(piece) {
+        if (!piece) return '';
+
+        // 成駒の場合
+        if (piece.promoted) {
+            const promotedMapping = {
+                '!と': 'と',
+                '!杏': '杏',
+                '!圭': '圭',
+                '!全': '全',
+                '!馬': '馬',
+                '!竜': '龍'
+            };
+            return promotedMapping[piece.type] || piece.type.substring(1);
+        }
+
+        // 通常駒はそのまま
+        return piece.type;
     }
 
     handleCellClick(row, col) {
@@ -558,6 +661,9 @@ export class ShogiGame {
             hash: hash,
             checker: isGivingCheck ? lastPlayer : null  // 王手をかけているプレイヤー
         });
+
+        // 解析用にSFENも記録(棋譜テキストからは局面を復元できないため)
+        this.sfenHistory.push(this.getSfen());
     }
 
     // 千日手チェック（同一局面4回で引き分け、ただし連続王手は攻め側の負け）
@@ -678,29 +784,43 @@ export class ShogiGame {
     // 引き分け終了
     endGameDraw(reason) {
         this.gameOver = true;
-        document.getElementById('game-result').textContent = `引き分け（${reason}）`;
-        document.getElementById('game-over').classList.remove('hidden');
+        const resultText = `引き分け（${reason}）`;
+
+        if (this.renderer) {
+            this.renderer.showGameResult(resultText);
+        } else {
+            const gameResult = document.getElementById('game-result');
+            const gameOver = document.getElementById('game-over');
+            if (gameResult) gameResult.textContent = resultText;
+            if (gameOver) gameOver.classList.remove('hidden');
+        }
     }
 
     highlightValidMoves(row, col) {
         this.clearHighlights();
         const validMoves = this.getValidMoves(row, col);
 
-        document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
+        if (this.renderer) {
+            this.renderer.highlightValidMoves(row, col, validMoves);
+        } else {
+            const selectedCell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (selectedCell) selectedCell.classList.add('selected');
 
-        validMoves.forEach(move => {
-            const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
-            if (cell) cell.classList.add('valid-move');
-        });
-
-        // 解析用にSFENも記録(棋譜テキストからは局面を復元できないため)
-        this.sfenHistory.push(this.getSfen());
+            validMoves.forEach(move => {
+                const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
+                if (cell) cell.classList.add('valid-move');
+            });
+        }
     }
 
     clearHighlights() {
-        document.querySelectorAll('.cell').forEach(cell => {
-            cell.classList.remove('selected', 'valid-move');
-        });
+        if (this.renderer) {
+            this.renderer.clearHighlights();
+        } else {
+            document.querySelectorAll('.cell').forEach(cell => {
+                cell.classList.remove('selected', 'valid-move');
+            });
+        }
     }
 
     canPlaceCapturedPiece(pieceType, row, col, player) {
@@ -925,7 +1045,14 @@ export class ShogiGame {
     }
 
     updateMoveHistory() {
+        if (this.renderer) {
+            this.renderer.updateMoveHistory(this.moveHistory);
+            return;
+        }
+
         const moveList = document.getElementById('move-list');
+        if (!moveList) return;
+
         moveList.innerHTML = this.moveHistory.map(move =>
             `<div class="move-item ${move.player === 'cpu' ? 'cpu-move' : ''}">
             ${move.number}. ${move.text}
@@ -937,6 +1064,12 @@ export class ShogiGame {
     }
 
     setupPromotionModal() {
+        // レンダラーが設定されている場合はスキップ（レンダラーがモーダルを管理）
+        if (this.renderer) return;
+
+        // 既存のモーダルがあれば作成しない
+        if (document.getElementById('promotion-modal')) return;
+
         // 成り選択モーダルを作成
         const modal = document.createElement('div');
         modal.id = 'promotion-modal';
@@ -950,15 +1083,23 @@ export class ShogiGame {
                 </div>
             </div>
         `;
-        document.getElementById('app').appendChild(modal);
+        const app = document.getElementById('app');
+        if (app) app.appendChild(modal);
 
-        document.getElementById('promote-yes').addEventListener('click', () => {
-            this.completeMove(true);
-        });
+        const promoteYes = document.getElementById('promote-yes');
+        const promoteNo = document.getElementById('promote-no');
 
-        document.getElementById('promote-no').addEventListener('click', () => {
-            this.completeMove(false);
-        });
+        if (promoteYes) {
+            promoteYes.addEventListener('click', () => {
+                this.completeMove(true);
+            });
+        }
+
+        if (promoteNo) {
+            promoteNo.addEventListener('click', () => {
+                this.completeMove(false);
+            });
+        }
     }
 
     initiateMove(fromRow, fromCol, toRow, toCol) {
@@ -985,7 +1126,14 @@ export class ShogiGame {
             this.completeMove(true);
         } else if (canPromote && piece.owner === 'player') {
             // プレイヤーに選択させる
-            document.getElementById('promotion-modal').classList.remove('hidden');
+            if (this.renderer) {
+                this.renderer.showPromotionModal((promote) => {
+                    this.completeMove(promote);
+                });
+            } else {
+                const modal = document.getElementById('promotion-modal');
+                if (modal) modal.classList.remove('hidden');
+            }
         } else {
             // 成らない
             this.completeMove(false);
@@ -993,7 +1141,11 @@ export class ShogiGame {
     }
 
     completeMove(promote) {
-        document.getElementById('promotion-modal').classList.add('hidden');
+        // モーダルを非表示（レンダラーが管理している場合は不要）
+        if (!this.renderer) {
+            const modal = document.getElementById('promotion-modal');
+            if (modal) modal.classList.add('hidden');
+        }
 
         if (!this.pendingMove) return;
 
@@ -1775,43 +1927,96 @@ export class ShogiGame {
     }
 
     updateUI() {
-        document.getElementById('turn-indicator').textContent =
-            this.currentPlayer === 'player' ? 'あなたの手番です' : 'CPUが考えています...';
+        // レンダラーが設定されている場合
+        if (this.renderer) {
+            this.renderer.updateTurnIndicator(this.currentPlayer);
+            this.renderer.renderCapturedPieces(
+                this.playerCaptured,
+                this.cpuCaptured,
+                this.selectedCapturedPiece
+            );
+            this.updateEvaluationDisplay();
+            return;
+        }
+
+        // フォールバック: 直接DOM操作
+        const turnIndicator = document.getElementById('turn-indicator');
+        if (turnIndicator) {
+            turnIndicator.textContent =
+                this.currentPlayer === 'player' ? 'あなたの手番です' : 'CPUが考えています...';
+        }
 
         // 評価表示を更新
         this.updateEvaluationDisplay();
 
-        // プレイヤーの持ち駒（クリック可能）
+        // プレイヤーの持ち駒（グループ化表示、クリック可能）
         const playerCapturedEl = document.getElementById('player-captured');
-        playerCapturedEl.innerHTML = this.playerCaptured.map((p, index) =>
-            `<div class="captured-piece ${this.selectedCapturedPiece === p && this.playerCaptured.indexOf(p) === index ? 'selected' : ''}"
-                  data-piece="${p}" data-index="${index}">${p}</div>`
-        ).join('');
+        if (playerCapturedEl) {
+            const playerGrouped = this.groupCapturedPieces(this.playerCaptured);
+            playerCapturedEl.innerHTML = this.renderGroupedCapturedPieces(playerGrouped, true);
 
-        // 持ち駒にクリックイベントを追加
-        playerCapturedEl.querySelectorAll('.captured-piece').forEach(el => {
-            el.addEventListener('click', () => {
-                if (this.currentPlayer === 'player' && !this.gameOver) {
-                    const pieceType = el.dataset.piece;
+            // 持ち駒にクリックイベントを追加
+            playerCapturedEl.querySelectorAll('.komadai-piece').forEach(el => {
+                el.addEventListener('click', () => {
+                    if (this.currentPlayer === 'player' && !this.gameOver) {
+                        const pieceType = el.dataset.piece;
 
-                    // 既に選択されている場合は解除
-                    if (this.selectedCapturedPiece === pieceType) {
-                        this.selectedCapturedPiece = null;
-                    } else {
-                        this.selectedCapturedPiece = pieceType;
-                        this.selectedPiece = null;
-                        this.selectedCell = null;
-                        this.clearHighlights();
+                        // 既に選択されている場合は解除
+                        if (this.selectedCapturedPiece === pieceType) {
+                            this.selectedCapturedPiece = null;
+                        } else {
+                            this.selectedCapturedPiece = pieceType;
+                            this.selectedPiece = null;
+                            this.selectedCell = null;
+                            this.clearHighlights();
+                        }
+
+                        this.updateUI();
                     }
-
-                    this.updateUI();
-                }
+                });
             });
+        }
+
+        // CPUの持ち駒（グループ化表示、表示のみ）
+        const cpuGrouped = this.groupCapturedPieces(this.cpuCaptured);
+        const cpuCapturedEl = document.getElementById('cpu-captured');
+        if (cpuCapturedEl) {
+            cpuCapturedEl.innerHTML = this.renderGroupedCapturedPieces(cpuGrouped, false);
+        }
+    }
+
+    /**
+     * 持ち駒を駒種ごとにグループ化してカウント
+     */
+    groupCapturedPieces(capturedList) {
+        const pieceOrder = ['飛', '角', '金', '銀', '桂', '香', '歩'];
+        const grouped = {};
+
+        for (const piece of capturedList) {
+            grouped[piece] = (grouped[piece] || 0) + 1;
+        }
+
+        // 駒の重要度順にソート
+        const sortedEntries = Object.entries(grouped).sort((a, b) => {
+            const indexA = pieceOrder.indexOf(a[0]);
+            const indexB = pieceOrder.indexOf(b[0]);
+            return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
         });
 
-        // CPUの持ち駒（表示のみ）
-        document.getElementById('cpu-captured').innerHTML =
-            this.cpuCaptured.map(p => `<div class="captured-piece">${p}</div>`).join('');
+        return sortedEntries;
+    }
+
+    /**
+     * グループ化された持ち駒をHTML描画
+     */
+    renderGroupedCapturedPieces(groupedPieces, isPlayer) {
+        return groupedPieces.map(([piece, count]) => {
+            const isSelected = isPlayer && this.selectedCapturedPiece === piece;
+            return `<div class="komadai-piece ${isSelected ? 'selected' : ''}" data-piece="${piece}">
+                <span class="piece-char">${piece}</span>
+                ${count > 1 ? `<span class="piece-count">×${count}</span>` : ''}
+            </div>`;
+        }).join('');
     }
 
     endGame(winner, reason = '') {
@@ -1820,8 +2025,15 @@ export class ShogiGame {
         if (reason) {
             resultText += `（${reason}）`;
         }
-        document.getElementById('game-result').textContent = resultText;
-        document.getElementById('game-over').classList.remove('hidden');
+
+        if (this.renderer) {
+            this.renderer.showGameResult(resultText);
+        } else {
+            const gameResult = document.getElementById('game-result');
+            const gameOver = document.getElementById('game-over');
+            if (gameResult) gameResult.textContent = resultText;
+            if (gameOver) gameOver.classList.remove('hidden');
+        }
     }
 
     resign() {
@@ -2025,13 +2237,19 @@ export class ShogiGame {
 
     // 評価表示を更新
     updateEvaluationDisplay() {
+        const evaluation = this.getPlayerEvaluation();
+
+        if (this.renderer) {
+            this.renderer.updateEvaluation(evaluation.score, evaluation.percentage);
+            return;
+        }
+
+        // フォールバック: 直接DOM操作
         const evalBarFill = document.getElementById('eval-bar-fill');
         const evalPercentage = document.getElementById('eval-percentage');
         const evalScore = document.getElementById('eval-score');
 
         if (!evalBarFill) return;
-
-        const evaluation = this.getPlayerEvaluation();
 
         // バー幅を更新
         evalBarFill.style.width = `${evaluation.percentage}%`;
