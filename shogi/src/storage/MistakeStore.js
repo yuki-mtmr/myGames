@@ -6,8 +6,9 @@
  * データ量増加後は同一 IF のまま IndexedDB 実装に差し替える。
  */
 
+import { loadEnvelope, saveEnvelope } from './envelope.js';
+
 const STORAGE_KEY = 'shogi-training/mistakes';
-const SCHEMA_VERSION = 1;
 const REQUIRED_FIELDS = ['gameId', 'ply', 'severity', 'tags'];
 
 function generateId() {
@@ -46,11 +47,8 @@ export class MistakeStore {
             createdAt: new Date().toISOString(),
         };
 
-        const envelope = this._load();
-        this._storage.setItem(STORAGE_KEY, JSON.stringify({
-            ...envelope,
-            records: [...envelope.records, saved],
-        }));
+        const envelope = loadEnvelope(this._storage, STORAGE_KEY);
+        saveEnvelope(this._storage, STORAGE_KEY, envelope, [...envelope.records, saved]);
         return saved;
     }
 
@@ -60,26 +58,10 @@ export class MistakeStore {
      * @returns {Object[]}
      */
     findAll(filters = {}) {
-        const { records } = this._load();
+        const { records } = loadEnvelope(this._storage, STORAGE_KEY);
         if (filters.gameId !== undefined) {
             return records.filter(r => r.gameId === filters.gameId);
         }
         return records;
-    }
-
-    /** @private 封筒を読み込む。壊れていれば空で復帰 */
-    _load() {
-        try {
-            const raw = this._storage.getItem(STORAGE_KEY);
-            if (!raw) return { schemaVersion: SCHEMA_VERSION, records: [] };
-            const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed.records)) {
-                throw new TypeError('invalid envelope');
-            }
-            return parsed;
-        } catch (error) {
-            console.warn('MistakeStore: corrupted data, starting fresh:', error);
-            return { schemaVersion: SCHEMA_VERSION, records: [] };
-        }
     }
 }

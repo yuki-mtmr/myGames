@@ -35,6 +35,12 @@ export const trainingConfig = {
         endgameMinPly: 90,
     },
 
+    // パターンタグ: material_loss は駒割差分(歩=1、捕獲は2倍で現れる単位)が
+    // この閾値以上悪化した場合。8 = 桂のタダ損相当以上(独自初期値)
+    tags: {
+        materialLossThreshold: 8,
+    },
+
     // 癖認定: 同型タグの悪手が直近 windowGames 局で minOccurrences 回以上
     habit: {
         minOccurrences: 3,
