@@ -114,8 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 終局後のAI解析(感想戦)パネル
     setupAnalysisPanel({ getGame: () => game, engineManager: aiEngineManager });
 
-    // 癖ダッシュボード
-    setupDashboardPanel();
+    // 癖ダッシュボード(ドリル判定用にエンジンを渡す)
+    setupDashboardPanel({ engineManager: aiEngineManager });
 
     // 保存データがあれば「続きから」ボタンを表示
     if (ShogiGame.hasSavedGame()) {

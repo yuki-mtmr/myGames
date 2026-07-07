@@ -9,6 +9,7 @@ import { GameStore } from '../storage/GameStore.js';
 import { detectHabits } from '../training/HabitDetector.js';
 import { mistakeRateSeries, phaseDistribution } from '../training/DashboardStats.js';
 import { trainingConfig } from '../config/trainingConfig.js';
+import { startDrillSession } from './DrillMode.js';
 
 const PHASE_LABELS = { opening: '序盤', middlegame: '中盤', endgame: '終盤' };
 
@@ -35,7 +36,7 @@ function bar(label, ratio, valueText) {
     return row;
 }
 
-function render(body) {
+function render(body, onDrillRequest) {
     body.innerHTML = '';
 
     let games, mistakes, recentIds;
@@ -67,7 +68,10 @@ function render(body) {
             const card = el('div', 'habit-card');
             card.appendChild(el('div', 'habit-label', `🔴 ${habit.label}`));
             card.appendChild(el('div', 'habit-count',
-                `${habit.occurrences}回 / 直近${habit.windowGames}局(矯正ドリルは今後対応)`));
+                `${habit.occurrences}回 / 直近${habit.windowGames}局`));
+            const drillBtn = el('button', 'replay-btn', 'この癖のドリルへ');
+            drillBtn.addEventListener('click', () => onDrillRequest?.(habit));
+            card.appendChild(drillBtn);
             body.appendChild(card);
         }
     }
@@ -91,16 +95,36 @@ function render(body) {
     });
 }
 
-/** ダッシュボードのイベントを初期化する */
-export function setupDashboardPanel() {
+/**
+ * ダッシュボードのイベントを初期化する
+ * @param {{ engineManager?: Object }} [deps] - ドリル判定用エンジンの取得元
+ */
+export function setupDashboardPanel({ engineManager } = {}) {
     const panel = document.getElementById('dashboard-panel');
     const body = document.getElementById('dashboard-body');
     const openBtn = document.getElementById('dashboard-btn');
     const closeBtn = document.getElementById('dashboard-close-btn');
     if (!panel || !body || !openBtn || !closeBtn) return;
 
+    const onDrillRequest = (habit) => {
+        const engine = engineManager?.currentEngine;
+        if (!engine || engine.getType() !== 'yaneuraou') {
+            body.prepend(el('p', 'dash-empty',
+                'ドリルの判定にはやねうら王エンジンが必要です。対局を開始してエンジンを起動してから再度お試しください。'));
+            return;
+        }
+        hide(panel);
+        startDrillSession(habit, {
+            engine,
+            onExit: () => {
+                render(body, onDrillRequest);
+                show(panel);
+            },
+        });
+    };
+
     openBtn.addEventListener('click', () => {
-        render(body);
+        render(body, onDrillRequest);
         show(panel);
     });
     closeBtn.addEventListener('click', () => hide(panel));

@@ -35,10 +35,12 @@ function sfenToSavedState(sfen) {
  * 再演モードを開始する
  * @param {Object} mistake - MistakeRecord 相当
  *   ({ ply, moveText, sfenBefore, bestMove, winrateBefore })
- * @param {{ engine: Object, onExit: Function }} deps -
- *   engine は getBestMove を持つこと。onExit は終了時に呼ばれる
+ * @param {{ engine: Object, onExit: Function, promptText?: string,
+ *           onFinished?: Function }} deps -
+ *   engine は getBestMove を持つこと。onExit は「戻る」押下時、
+ *   onFinished は判定確定時(正解 or 規定回数失敗)に outcome を渡して呼ばれる
  */
-export function startReplay(mistake, { engine, onExit }) {
+export function startReplay(mistake, { engine, onExit, promptText, onFinished }) {
     const banner = document.getElementById('replay-banner');
     const promptEl = document.getElementById('replay-prompt');
     const feedbackEl = document.getElementById('replay-feedback');
@@ -75,6 +77,9 @@ export function startReplay(mistake, { engine, onExit }) {
     };
 
     const renderOutcome = (outcome) => {
+        if (outcome.finished) {
+            onFinished?.(outcome);
+        }
         const pct = outcome.answerWinrate === null || outcome.answerWinrate === undefined
             ? null : Math.round(outcome.answerWinrate * 100);
 
@@ -119,7 +124,7 @@ export function startReplay(mistake, { engine, onExit }) {
     };
     exitBtn.addEventListener('click', handleExit);
 
-    promptEl.textContent =
+    promptEl.textContent = promptText ??
         `${mistake.ply}手目、あなたは ${mistake.moveText} と指しました(悪手)。この局面でより良い手を指してください。`;
     feedbackEl.textContent = '';
     feedbackEl.dataset.result = '';
