@@ -1291,3 +1291,91 @@ header h1 {
         font-size: 0.7rem;
     }
 }
+
+/* ============================
+   感想戦 — AI解析パネル
+   ============================ */
+
+.analysis-content {
+    max-width: 560px;
+    width: 92%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    text-align: left;
+}
+
+#analysis-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.progress-track {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    overflow: hidden;
+}
+
+#analysis-progress-bar {
+    height: 100%;
+    width: 0;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent-gold), var(--accent-gold-light));
+    transition: width 0.2s ease;
+}
+
+#analysis-progress-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+#analysis-summary {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+#mistake-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mistake-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-left-width: 4px;
+}
+
+.mistake-item.severity-inaccuracy {
+    border-left-color: var(--accent-gold);
+}
+
+.mistake-item.severity-mistake {
+    border-left-color: #d9662e;
+}
+
+.mistake-item.severity-blunder {
+    border-left-color: var(--accent-red);
+}
+
+.mistake-head {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.mistake-explanation {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}

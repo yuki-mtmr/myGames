@@ -6,6 +6,8 @@ import {
     ENGINE_TYPES,
     STRENGTH_LEVELS
 } from './src/ai/index.js';
+import { DOMRenderer, ThreeJSRenderer } from './src/renderers/index.js';
+import { setupAnalysisPanel } from './src/ui/AnalysisPanel.js';
 
 let game = null;
 let engineInitialized = false;
@@ -46,6 +48,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ブラウザ互換性チェックとUI初期化
     initializeEngineUI();
+
+    // 終局後のAI解析(感想戦)パネル
+    setupAnalysisPanel({ getGame: () => game, engineManager: aiEngineManager });
 
     // 保存データがあれば「続きから」ボタンを表示
     if (ShogiGame.hasSavedGame()) {

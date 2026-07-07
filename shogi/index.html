@@ -145,7 +145,25 @@
         <div id="game-over" class="modal hidden">
             <div class="modal-content">
                 <h2 id="game-result"></h2>
+                <button id="analyze-btn">AI解析（感想戦）</button>
                 <button id="restart-btn">新しい対局</button>
+            </div>
+        </div>
+
+        <div id="analysis-panel" class="modal hidden">
+            <div class="modal-content analysis-content">
+                <h2>感想戦 — 悪手レビュー</h2>
+                <div id="analysis-progress" class="hidden">
+                    <div class="progress-track">
+                        <div id="analysis-progress-bar"></div>
+                    </div>
+                    <span id="analysis-progress-text"></span>
+                </div>
+                <div id="analysis-result" class="hidden">
+                    <p id="analysis-summary"></p>
+                    <ul id="mistake-list"></ul>
+                </div>
+                <button id="analysis-close-btn">閉じる</button>
             </div>
         </div>
     </div>
