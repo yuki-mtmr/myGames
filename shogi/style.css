@@ -1761,3 +1761,58 @@ header h1 {
     font-size: 0.85rem;
     padding: 6px 12px;
 }
+
+/* ============================
+   終局バナー(盤面を隠さない結果表示)
+   ============================ */
+
+.game-end-banner {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 900;
+    max-width: 560px;
+    width: 92%;
+    animation: game-end-slide-in 0.35s ease;
+}
+
+.game-end-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 12px 18px;
+    border-radius: 12px;
+    background: var(--glass-bg-solid);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
+.game-end-content h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.game-end-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.game-end-actions button {
+    font-size: 0.9rem;
+    padding: 8px 14px;
+}
+
+@keyframes game-end-slide-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -12px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
