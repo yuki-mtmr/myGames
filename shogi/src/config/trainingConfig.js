@@ -48,6 +48,15 @@ export const trainingConfig = {
         sessionSize: 7,
     },
 
+    // 再演モード: 最善手との勝率差で正解/惜しい/不正解を判定(独自初期値)。
+    // 2回失敗で最善手を開示(エラー修正学習: 誤答直後の正解提示。PMC9345471)
+    replay: {
+        correctTolerance: 0.02,
+        closeTolerance: 0.06,
+        maxAttempts: 2,
+        movetimeMs: 800,
+    },
+
     // 通知: 対局中の悪手即時通知(要件2: 初期 ON、設定で OFF 可)
     notifications: {
         liveBlunderAlert: true,
