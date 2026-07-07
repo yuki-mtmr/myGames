@@ -7,6 +7,10 @@ export default defineConfig(({ mode }) => {
             outDir: 'dist',
             assetsDir: 'assets',
             sourcemap: false,
+            // やねうら王の pthread worker(?url import)が data: URL に
+            // インライン化されると opaque origin になり、COEP 下で
+            // importScripts が NetworkError になるため無効化する
+            assetsInlineLimit: 0,
         },
         server: {
             headers: {
@@ -22,7 +26,9 @@ export default defineConfig(({ mode }) => {
             },
         },
         optimizeDeps: {
-            exclude: ['@mizarjp/yaneuraou.k-p'],
+            // UMD 形式のため esbuild の CJS→ESM 変換に載せる(exclude すると
+            // 素の UMD が ESM として配信され export が空になる)
+            include: ['@mizarjp/yaneuraou.k-p'],
         },
         worker: {
             format: 'es',

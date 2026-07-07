@@ -46,22 +46,60 @@ async function handleInit(id) {
   try {
     // @mizarjp/yaneuraou.k-p パッケージをインポート
     // Note: Viteがこれをバンドルして提供する
-    const YaneuraOu = await import('@mizarjp/yaneuraou.k-p');
+    const mod = await import('@mizarjp/yaneuraou.k-p');
+
+    // prebundle されると Emscripten の相対パス解決(_scriptDir)が壊れるため、
+    // WASM と pthread worker の実 URL を ?url import で明示する
+    const { default: wasmUrl } = await import(
+      '@mizarjp/yaneuraou.k-p/lib/yaneuraou.k-p.wasm?url'
+    );
+    const { default: pthreadWorkerUrl } = await import(
+      '@mizarjp/yaneuraou.k-p/lib/yaneuraou.k-p.worker.js?url'
+    );
+    // pthread worker は importScripts でメイン JS を再ロードするため、
+    // prebundle 前の元ファイル URL を明示的に渡す必要がある
+    const { default: mainScriptUrl } = await import(
+      '@mizarjp/yaneuraou.k-p/lib/yaneuraou.k-p.js?url'
+    );
+
+    // ビルド時に pthread worker が data: URL へインライン化されると
+    // 相対 URL を解決できなくなるため、全て絶対 URL に正規化して渡す
+    const toAbsolute = (url) => new URL(url, self.location.href).href;
+
+    // パッケージは UMD 形式(exports.YaneuraOu_K_P)のため、Vite の
+    // CJS interop 結果がビルド/開発モードで異なる。関数になるまで剥がす
+    const factory = [
+      mod.default,
+      mod.default?.YaneuraOu_K_P,
+      mod.YaneuraOu_K_P,
+      // UMD が ESM として読まれた場合は Worker グローバルに代入される
+      self.YaneuraOu_K_P,
+      mod,
+    ].find(candidate => typeof candidate === 'function');
+    if (!factory) {
+      throw new Error('YaneuraOu module factory not found in package exports');
+    }
 
     // エンジンインスタンスを作成
-    engine = await YaneuraOu.default();
+    engine = await factory({
+      mainScriptUrlOrBlob: toAbsolute(mainScriptUrl),
+      locateFile: (path, prefix) => {
+        if (path.endsWith('.wasm')) return toAbsolute(wasmUrl);
+        if (path.endsWith('.worker.js')) return toAbsolute(pthreadWorkerUrl);
+        return prefix + path;
+      },
+    });
 
     // USI初期化シーケンス
+    // 応答が同期的に返ることがあるため、リスナー登録(waitForResponse)を
+    // コマンド送信より先に行う
+    const usiokPromise = waitForResponse('usiok');
     sendUsi('usi');
+    await usiokPromise;
 
-    // usiokを待つ
-    await waitForResponse('usiok');
-
-    // isreadyを送信
+    const readyokPromise = waitForResponse('readyok');
     sendUsi('isready');
-
-    // readyokを待つ
-    await waitForResponse('readyok');
+    await readyokPromise;
 
     isReady = true;
 
@@ -97,10 +135,12 @@ async function handleSearch(id, { sfen, time, depth }) {
       goCommand += ` depth ${depth}`;
     }
 
+    // 同期応答の取りこぼしを防ぐため、リスナー登録を送信より先に行う
+    const bestmovePromise = waitForBestmove(id);
     sendUsi(goCommand);
 
     // bestmoveを待つ
-    const result = await waitForBestmove(id);
+    const result = await bestmovePromise;
 
     if (result && currentSearchId === id) {
       self.postMessage({
@@ -159,24 +199,20 @@ function sendUsi(command) {
  */
 function waitForResponse(expected) {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error(`Timeout waiting for ${expected}`));
-    }, 10000);
-
-    const originalHandler = engine.onmessage;
-
-    engine.onmessage = (line) => {
-      // 元のハンドラも呼び出す
-      if (originalHandler) {
-        originalHandler(line);
-      }
-
-      if (line.trim() === expected) {
+    const listener = (line) => {
+      if (String(line).trim() === expected) {
         clearTimeout(timeout);
-        engine.onmessage = originalHandler;
+        engine.removeMessageListener(listener);
         resolve();
       }
     };
+
+    const timeout = setTimeout(() => {
+      engine.removeMessageListener(listener);
+      reject(new Error(`Timeout waiting for ${expected}`));
+    }, 10000);
+
+    engine.addMessageListener(listener);
   });
 }
 
@@ -192,15 +228,8 @@ function waitForBestmove(searchId) {
     let lastScore = 0;
     let lastPv = [];
 
-    const originalHandler = engine.onmessage;
-
-    engine.onmessage = (line) => {
-      // 元のハンドラも呼び出す
-      if (originalHandler) {
-        originalHandler(line);
-      }
-
-      const trimmed = line.trim();
+    const listener = (line) => {
+      const trimmed = String(line).trim();
 
       // info行から探索情報を抽出
       if (trimmed.startsWith('info')) {
@@ -227,7 +256,7 @@ function waitForBestmove(searchId) {
       // bestmove行
       if (trimmed.startsWith('bestmove')) {
         clearTimeout(timeout);
-        engine.onmessage = originalHandler;
+        engine.removeMessageListener(listener);
 
         const parts = trimmed.split(' ');
         const move = parts[1];
@@ -239,6 +268,8 @@ function waitForBestmove(searchId) {
         }
       }
     };
+
+    engine.addMessageListener(listener);
   });
 }
 
