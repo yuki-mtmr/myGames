@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(({ mode }) => {
     return {
-        base: mode === 'production' ? '/myGames/shogi/' : '/',
+        base: mode === 'production' ? '/shogi/' : '/',
         build: {
             outDir: 'dist',
             assetsDir: 'assets',

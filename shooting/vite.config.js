@@ -5,7 +5,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
 
     return {
-        base: mode === 'production' ? '/myGames/shooting/' : '/',
+        base: mode === 'production' ? '/shooting/' : '/',
         build: {
             outDir: 'dist',
             assetsDir: 'assets',
