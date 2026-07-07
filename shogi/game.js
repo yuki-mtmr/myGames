@@ -155,6 +155,7 @@ export class ShogiGame {
             this.cpuCaptured = savedState.cpuCaptured;
             this.moveHistory = savedState.moveHistory;
             this.positionHistory = savedState.positionHistory || [];
+            this.sfenHistory = savedState.sfenHistory || [];
             this.gameOver = savedState.gameOver;
             this.stateHistory = savedState.stateHistory || [];
         } else {
@@ -164,6 +165,7 @@ export class ShogiGame {
             this.cpuCaptured = [];
             this.moveHistory = [];
             this.positionHistory = [];
+            this.sfenHistory = []; // 解析用: 初期局面+各手後のSFEN列
             this.gameOver = false;
             this.stateHistory = []; // 待った用の状態履歴
         }
@@ -690,6 +692,9 @@ export class ShogiGame {
             const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
             if (cell) cell.classList.add('valid-move');
         });
+
+        // 解析用にSFENも記録(棋譜テキストからは局面を復元できないため)
+        this.sfenHistory.push(this.getSfen());
     }
 
     clearHighlights() {
@@ -1834,6 +1839,7 @@ export class ShogiGame {
             positionHistory: this.positionHistory.map(p =>
                 typeof p === 'object' ? { ...p } : p
             ),
+            sfenHistory: [...this.sfenHistory],
             gameOver: this.gameOver
         };
         this.stateHistory.push(snapshot);
@@ -1868,6 +1874,7 @@ export class ShogiGame {
         this.cpuCaptured = previousState.cpuCaptured;
         this.moveHistory = previousState.moveHistory;
         this.positionHistory = previousState.positionHistory;
+        this.sfenHistory = previousState.sfenHistory || [];
         this.gameOver = previousState.gameOver;
 
         // 選択状態をリセット
@@ -1897,6 +1904,7 @@ export class ShogiGame {
             positionHistory: this.positionHistory.map(p =>
                 typeof p === 'object' ? { ...p } : p
             ),
+            sfenHistory: [...this.sfenHistory],
             gameOver: this.gameOver,
             lastMove: this.lastMove ? { ...this.lastMove } : null,
             stateHistory: this.stateHistory.map(s => ({
