@@ -54,6 +54,22 @@ export const trainingConfig = {
         sessionSize: 7,
     },
 
+    // 間隔反復(FSRS簡易版): 難易度・安定度・期日の3変数。
+    // FSRS の設計(難易度/安定度/想起確率)を2値評価(正解/不正解)向けに簡略化。
+    // 初期値は Anki/FSRS の慣習値をベースにした独自設定(運用調整前提)
+    fsrs: {
+        initialStabilityCorrect: 3,   // 初回正解の復習間隔(日)
+        initialStabilityWrong: 0.5,   // 初回不正解の復習間隔(日)
+        difficultyInit: 5,            // 難易度初期値(1-10)
+        difficultyMin: 1,
+        difficultyMax: 10,
+        difficultyStepUp: 1,          // 不正解時の難易度増分
+        difficultyStepDown: 0.5,      // 正解時の難易度減分
+        growthBase: 2.5,              // 正解時の安定度成長係数(易しいほど速く伸びる)
+        lapseFactor: 0.5,             // 不正解時の安定度縮小率
+        maxIntervalDays: 365,         // 復習間隔の上限(Anki の maximumInterval 相当)
+    },
+
     // 再演モード: 最善手との勝率差で正解/惜しい/不正解を判定(独自初期値)。
     // 2回失敗で最善手を開示(エラー修正学習: 誤答直後の正解提示。PMC9345471)
     replay: {
