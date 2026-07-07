@@ -12,6 +12,9 @@
         <header>
             <h1>将棋対局</h1>
             <div class="header-buttons">
+                <button class="view-toggle" id="dashboard-btn" aria-label="癖ダッシュボード">
+                    <span>📊</span>
+                </button>
                 <button class="view-toggle" id="view-mode-toggle" aria-label="表示切替">
                     <span class="view-icon">3D</span>
                 </button>
@@ -177,6 +180,14 @@
                     <button id="analyze-btn">AI解析（感想戦）</button>
                     <button id="restart-btn">新しい対局</button>
                 </div>
+            </div>
+        </div>
+
+        <div id="dashboard-panel" class="modal hidden">
+            <div class="modal-content analysis-content">
+                <h2>癖ダッシュボード</h2>
+                <div id="dashboard-body"></div>
+                <button id="dashboard-close-btn">閉じる</button>
             </div>
         </div>
 

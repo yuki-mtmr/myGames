@@ -1816,3 +1816,72 @@ header h1 {
         transform: translate(-50%, 0);
     }
 }
+
+/* ============================
+   癖ダッシュボード
+   ============================ */
+
+#dashboard-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    text-align: left;
+}
+
+.dash-section-title {
+    margin: 10px 0 2px;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.dash-empty {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.habit-card {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-left: 4px solid var(--accent-red);
+}
+
+.habit-label {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.habit-count {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.dash-bar-row {
+    display: grid;
+    grid-template-columns: 7.5em 1fr 3.5em;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.dash-bar-track {
+    height: 10px;
+    border-radius: 5px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    overflow: hidden;
+}
+
+.dash-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-gold));
+    border-radius: 5px;
+}
+
+.dash-bar-value {
+    text-align: right;
+}

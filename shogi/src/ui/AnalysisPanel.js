@@ -7,8 +7,9 @@
 
 import { analyzeGame } from '../analysis/GameAnalyzer.js';
 import { explainMistake } from '../analysis/MoveExplainer.js';
-import { tagPhase } from '../training/MistakeTagger.js';
+import { tagPhase, buildTags } from '../training/MistakeTagger.js';
 import { MistakeStore } from '../storage/MistakeStore.js';
+import { GameStore } from '../storage/GameStore.js';
 import { trainingConfig } from '../config/trainingConfig.js';
 import { startReplay } from './ReplayMode.js';
 
@@ -55,11 +56,10 @@ export function setupAnalysisPanel({ getGame, engineManager }) {
         renderProgress(0, 1);
 
         try {
+            const sfens = [...game.sfenHistory];
+            const moveTexts = game.moveHistory.map(m => m.text.trim());
             const result = await analyzeGame(
-                {
-                    sfens: [...game.sfenHistory],
-                    moveTexts: game.moveHistory.map(m => m.text.trim()),
-                },
+                { sfens, moveTexts },
                 {
                     engine,
                     config: { movetimeMs: trainingConfig.analysis.movetimeMs },
@@ -67,7 +67,7 @@ export function setupAnalysisPanel({ getGame, engineManager }) {
                 }
             );
             const playerMistakes = result.mistakes.filter(m => m.mover === 'player');
-            persistMistakes(playerMistakes);
+            persistAnalysis(playerMistakes, { sfens, totalPlies: moveTexts.length });
             renderResult(result, playerMistakes, (mistake) => {
                 hide(panel);
                 startReplay(mistake, {
@@ -93,13 +93,26 @@ export function setupAnalysisPanel({ getGame, engineManager }) {
     });
 }
 
-/** 悪手を自動タグ付けして蓄積する(失敗しても表示は継続) */
-function persistMistakes(mistakes) {
+/** 悪手のタグ付け保存と対局サマリの記録(失敗しても表示は継続) */
+function persistAnalysis(mistakes, { sfens, totalPlies }) {
     try {
-        const store = new MistakeStore();
+        const mistakeStore = new MistakeStore();
+        const gameStore = new GameStore();
         const gameId = globalThis.crypto?.randomUUID?.() ?? `g-${Date.now()}`;
+
+        const mistakeCounts = mistakes.reduce(
+            (acc, m) => ({ ...acc, [m.severity]: (acc[m.severity] ?? 0) + 1 }),
+            { inaccuracy: 0, mistake: 0, blunder: 0 }
+        );
+        gameStore.save({
+            gameId,
+            playedAt: new Date().toISOString(),
+            totalPlies,
+            mistakeCounts,
+        });
+
         for (const m of mistakes) {
-            store.save({
+            mistakeStore.save({
                 gameId,
                 ply: m.ply,
                 sfenBefore: m.sfenBefore,
@@ -109,11 +122,13 @@ function persistMistakes(mistakes) {
                 winrateAfter: m.winrateAfter,
                 drop: m.drop,
                 severity: m.severity,
-                tags: { phase: tagPhase(m.ply) },
+                tags: buildTags({
+                    ply: m.ply, moveText: m.moveText, sfens, bestMove: m.bestMove,
+                }),
             });
         }
     } catch (error) {
-        console.warn('Failed to persist mistakes:', error);
+        console.warn('Failed to persist analysis:', error);
     }
 }
 

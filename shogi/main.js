@@ -8,6 +8,7 @@ import {
 } from './src/ai/index.js';
 import { DOMRenderer, ThreeJSRenderer } from './src/renderers/index.js';
 import { setupAnalysisPanel } from './src/ui/AnalysisPanel.js';
+import { setupDashboardPanel } from './src/ui/DashboardPanel.js';
 
 let game = null;
 let engineInitialized = false;
@@ -112,6 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 終局後のAI解析(感想戦)パネル
     setupAnalysisPanel({ getGame: () => game, engineManager: aiEngineManager });
+
+    // 癖ダッシュボード
+    setupDashboardPanel();
 
     // 保存データがあれば「続きから」ボタンを表示
     if (ShogiGame.hasSavedGame()) {
