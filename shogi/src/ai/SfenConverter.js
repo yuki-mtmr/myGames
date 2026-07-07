@@ -285,8 +285,11 @@ export class SfenConverter {
   static _countCapturedPieces(captured) {
     const counts = {};
     for (const piece of captured) {
+      // game.js は文字列('歩')、sfenToBoard 復元後は {type} オブジェクトの
+      // 両形式が流れてくるため双方を受け付ける
+      const type = typeof piece === 'string' ? piece : piece?.type;
       // 成り駒は成る前の駒として数える
-      const baseType = this._getBasePieceType(piece.type);
+      const baseType = this._getBasePieceType(type);
       counts[baseType] = (counts[baseType] || 0) + 1;
     }
     return counts;
@@ -299,7 +302,11 @@ export class SfenConverter {
   static _getBasePieceType(type) {
     const promotedToBase = {
       '!と': '歩', '!杏': '香', '!圭': '桂', '!全': '銀',
-      '!馬': '角', '!竜': '飛'
+      '!馬': '角', '!竜': '飛',
+      // 表示名ベースの成駒(game.js の棋譜テキスト等から来る形式)
+      'と': '歩', '杏': '香', '圭': '桂', '全': '銀',
+      '成香': '香', '成桂': '桂', '成銀': '銀',
+      '馬': '角', '竜': '飛', '龍': '飛'
     };
     return promotedToBase[type] || type;
   }
