@@ -2,7 +2,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(({ mode }) => {
     return {
-        base: mode === 'production' ? '/shogi/' : '/',
+        // Vercel(単独プロジェクト shogi)ではルート配信、
+        // モノレポ静的配信(GitHub Pages 等)では /shogi/ 配下
+        base: process.env.VERCEL ? '/' : (mode === 'production' ? '/shogi/' : '/'),
         build: {
             outDir: 'dist',
             assetsDir: 'assets',
