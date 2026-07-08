@@ -26,9 +26,11 @@ function hide(el) { el?.classList.add('hidden'); }
 
 /**
  * 解析パネルのイベントを初期化する
- * @param {{ getGame: () => Object|null, engineManager: Object }} deps
+ * @param {{ getGame: () => Object|null, engineManager: Object,
+ *           onAnalyzed?: Function }} deps - onAnalyzed は解析完了時に
+ *   結果({evals, judgments, mistakes})を渡して呼ばれる(検討モード連携用)
  */
-export function setupAnalysisPanel({ getGame, engineManager }) {
+export function setupAnalysisPanel({ getGame, engineManager, onAnalyzed }) {
     const panel = document.getElementById('analysis-panel');
     const analyzeBtn = document.getElementById('analyze-btn');
     const closeBtn = document.getElementById('analysis-close-btn');
@@ -68,6 +70,7 @@ export function setupAnalysisPanel({ getGame, engineManager }) {
             );
             const playerMistakes = result.mistakes.filter(m => m.mover === 'player');
             persistAnalysis(playerMistakes, { sfens, totalPlies: moveTexts.length });
+            onAnalyzed?.(result);
             renderResult(result, playerMistakes, (mistake) => {
                 hide(panel);
                 startReplay(mistake, {

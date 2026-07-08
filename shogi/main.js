@@ -9,6 +9,7 @@ import {
 import { DOMRenderer, ThreeJSRenderer } from './src/renderers/index.js';
 import { setupAnalysisPanel } from './src/ui/AnalysisPanel.js';
 import { setupDashboardPanel } from './src/ui/DashboardPanel.js';
+import { setupReviewPanel } from './src/ui/ReviewPanel.js';
 
 let game = null;
 let engineInitialized = false;
@@ -111,8 +112,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // ブラウザ互換性チェックとUI初期化
     initializeEngineUI();
 
-    // 終局後のAI解析(感想戦)パネル
-    setupAnalysisPanel({ getGame: () => game, engineManager: aiEngineManager });
+    // 終局後の検討モード(棋譜ナビ+評価値グラフ)
+    const reviewPanel = setupReviewPanel({ getGame: () => game });
+
+    // 終局後のAI解析(感想戦)パネル(解析結果を検討モードへ連携)
+    setupAnalysisPanel({
+        getGame: () => game,
+        engineManager: aiEngineManager,
+        onAnalyzed: (result) => reviewPanel?.setAnalysis(result),
+    });
 
     // 癖ダッシュボード(ドリル判定用にエンジンを渡す)
     setupDashboardPanel({ engineManager: aiEngineManager });

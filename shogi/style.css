@@ -1885,3 +1885,82 @@ header h1 {
 .dash-bar-value {
     text-align: right;
 }
+
+/* ============================
+   検討モード(棋譜ナビ+評価値グラフ)
+   ============================ */
+
+#review-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#eval-graph {
+    width: 100%;
+    height: 90px;
+    border-radius: 8px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    cursor: pointer;
+}
+
+.eval-graph-center {
+    stroke: var(--text-secondary);
+    stroke-width: 0.5;
+    stroke-dasharray: 3 3;
+}
+
+.eval-graph-line {
+    fill: none;
+    stroke: var(--accent-blue);
+    stroke-width: 1.5;
+}
+
+.eval-graph-marker.severity-inaccuracy { fill: var(--accent-gold); }
+.eval-graph-marker.severity-mistake { fill: #d9662e; }
+.eval-graph-marker.severity-blunder { fill: var(--accent-red); }
+
+#eval-graph-cursor {
+    stroke: var(--text-primary);
+    stroke-width: 1;
+    opacity: 0.6;
+}
+
+#review-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#review-controls button {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+}
+
+#review-position {
+    flex: 1;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.move-item {
+    cursor: pointer;
+}
+
+.move-item.review-current {
+    background: var(--selected-cell);
+    border-radius: 6px;
+}
+
+.judgment-mark {
+    margin-left: 6px;
+    font-weight: 700;
+}
+
+.judgment-mark.severity-inaccuracy { color: var(--accent-gold); }
+.judgment-mark.severity-mistake { color: #d9662e; }
+.judgment-mark.severity-blunder { color: var(--accent-red); }
