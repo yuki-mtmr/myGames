@@ -1,63 +1,71 @@
 /* =========================
    Modern Zen (和モダン) Design System
    ========================= */
+/* 和風トークン(docs/design-tokens.md)。:root=ダーク既定、[data-theme="light"]で上書き。
+   旧 --glass-* は不透明パネル値へのエイリアス(blur廃止)として温存し、全参照箇所を一括更新する */
 :root {
     /* App Background */
-    --bg-app: #1a1c23;
-    --bg-container: #23262f;
-    --bg-gradient: linear-gradient(135deg, #1a1c23 0%, #2d3038 100%);
+    --bg-app: #191510;
+    --bg-container: #242019;
+    --bg-gradient: linear-gradient(160deg, #1c1712 0%, #14100b 100%);
 
     /* Board Colors */
-    --board-light: #e6cfa1;
-    --board-dark: #c9a86c;
-    --board-border: #8b7355;
-    --board-shadow: rgba(0, 0, 0, 0.4);
+    --board-light: #8a6a3c;
+    --board-dark: #7a5a30;
+    --board-mid: #816035;
+    --board-border: #4a3018;
+    --board-shadow: rgba(0, 0, 0, 0.55);
 
     /* Piece Colors */
-    --piece-bg: #f5e6c8;
-    --piece-text: #2c1810;
-    --piece-promoted: #b8192c;
-    --piece-shadow: rgba(0, 0, 0, 0.3);
+    --piece-bg: #e8d4ab;
+    --piece-text: #1f1108;
+    --piece-promoted: #c23a4f;
+    --piece-border: #2a1808;
+    --piece-shadow: rgba(0, 0, 0, 0.5);
 
     /* Komadai */
-    --komadai-bg: #d4b896;
+    --komadai-bg: #5c3f22;
+    --komadai-border: #3a2814;
 
-    /* Glass Effect */
-    --glass-bg: rgba(255, 255, 255, 0.05);
-    --glass-bg-solid: rgba(35, 38, 47, 0.95);
-    --glass-border: rgba(255, 255, 255, 0.08);
-    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    --glass-blur: blur(12px);
+    /* Panel(旧 Glass。不透明・blurなし) */
+    --glass-bg: rgba(255, 255, 255, 0.04);
+    --glass-bg-solid: #242019;
+    --glass-border: #3c3226;
+    --glass-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+    --glass-blur: blur(0px);
 
     /* Accent Colors */
-    --accent-gold: #c9a227;
-    --accent-gold-light: #e6c35a;
-    --accent-red: #b8192c;
-    --accent-blue: #4a90a4;
-    --accent-green: #5a9a6a;
+    --accent-gold: #c9a04a;
+    --accent-gold-light: #e0b968;
+    --accent-red: #d63a4e;
+    --accent-blue: #5a8bb0;
+    --accent-green: #4fae5f;
 
     /* Interactive States */
-    --selected-cell: rgba(74, 144, 164, 0.4);
-    --valid-move-bg: rgba(90, 154, 106, 0.35);
-    --valid-move-dot: rgba(90, 154, 106, 0.7);
-    --last-move-from: rgba(201, 162, 39, 0.25);
-    --last-move-to: rgba(201, 162, 39, 0.4);
-    --hover-glow: rgba(201, 162, 39, 0.3);
+    --selected-cell: rgba(90, 140, 180, 0.35);
+    --valid-move-bg: rgba(100, 170, 110, 0.22);
+    --valid-move-dot: rgba(100, 170, 110, 0.8);
+    --last-move-from: rgba(201, 160, 74, 0.25);
+    --last-move-to: rgba(201, 160, 74, 0.42);
+    --hover-glow: rgba(201, 160, 74, 0.3);
 
     /* Text Colors */
-    --text-primary: #e8e8e8;
-    --text-secondary: #a0a0b0;
-    --text-muted: #6a6a7a;
-    --text-light: #ffffff;
+    --text-primary: #ece3d2;
+    --text-secondary: #b0a288;
+    --text-muted: #7a6d58;
+    --text-light: #fffaf2;
 
     /* Evaluation */
-    --eval-player: #c9a227;
-    --eval-cpu: #4a90a4;
+    --eval-player: #c9a04a;
+    --eval-cpu: #5a8bb0;
+    --eval-good: #4fae5f;
+    --eval-inaccuracy: #e08f30;
+    --eval-mistake: #d63a4e;
 
     /* UI Elements */
     --modal-overlay: rgba(0, 0, 0, 0.7);
-    --input-bg: rgba(255, 255, 255, 0.05);
-    --border-color: rgba(255, 255, 255, 0.1);
+    --input-bg: rgba(255, 255, 255, 0.04);
+    --border-color: rgba(255, 255, 255, 0.08);
 
     /* Spacing */
     --space-xs: 4px;
@@ -66,12 +74,17 @@
     --space-lg: 24px;
     --space-xl: 32px;
 
-    /* Border Radius */
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-xl: 18px;
-    --radius-full: 50px;
+    /* Border Radius(和質感のため縮小。ピル形状は廃止) */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 10px;
+    --radius-full: 10px;
+
+    /* Shadow */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
 
     /* Transitions */
     --transition-fast: 0.15s ease;
@@ -85,23 +98,60 @@
 
 /* Light Theme */
 [data-theme="light"] {
-    --bg-app: #f5f0e6;
-    --bg-container: #ffffff;
-    --bg-gradient: linear-gradient(135deg, #f5f0e6 0%, #e8e0d0 100%);
+    --bg-app: #f4ede0;
+    --bg-container: #fffaf2;
+    --bg-gradient: linear-gradient(160deg, #f7f1e6 0%, #ece1cd 100%);
 
-    --glass-bg: rgba(255, 255, 255, 0.7);
-    --glass-bg-solid: rgba(255, 255, 255, 0.95);
-    --glass-border: rgba(139, 115, 85, 0.2);
-    --glass-shadow: 0 8px 32px rgba(139, 115, 85, 0.15);
+    --board-light: #e8c98a;
+    --board-dark: #d9b06e;
+    --board-mid: #e0bd7c;
+    --board-border: #5c3d1f;
+    --board-shadow: rgba(30, 18, 8, 0.35);
 
-    --text-primary: #2c1810;
-    --text-secondary: #5a4a3a;
-    --text-muted: #8a7a6a;
+    --piece-bg: #f2debb;
+    --piece-text: #1f1108;
+    --piece-promoted: #a3122a;
+    --piece-border: #3a2412;
+    --piece-shadow: rgba(30, 18, 8, 0.28);
 
-    --selected-cell: rgba(74, 144, 164, 0.3);
-    --hover-glow: rgba(201, 162, 39, 0.4);
-    --border-color: rgba(139, 115, 85, 0.15);
-    --input-bg: rgba(0, 0, 0, 0.03);
+    --komadai-bg: #7a5530;
+    --komadai-border: #5c3d1f;
+
+    --glass-bg: rgba(90, 65, 30, 0.05);
+    --glass-bg-solid: #fffaf2;
+    --glass-border: #d8c6a3;
+    --glass-shadow: 0 2px 10px rgba(90, 65, 30, 0.12);
+
+    --accent-gold: #a8781f;
+    --accent-gold-light: #c99a3d;
+    --accent-red: #a8192c;
+    --accent-blue: #3a6082;
+    --accent-green: #2f7a3d;
+
+    --selected-cell: rgba(58, 96, 130, 0.28);
+    --valid-move-bg: rgba(60, 110, 70, 0.16);
+    --valid-move-dot: rgba(60, 110, 70, 0.75);
+    --last-move-from: rgba(168, 120, 31, 0.20);
+    --last-move-to: rgba(168, 120, 31, 0.35);
+    --hover-glow: rgba(168, 120, 31, 0.25);
+
+    --text-primary: #231a10;
+    --text-secondary: #5c4c38;
+    --text-muted: #8a7a62;
+
+    --eval-player: #a8781f;
+    --eval-cpu: #3a6082;
+    --eval-good: #2f7a3d;
+    --eval-inaccuracy: #c8791a;
+    --eval-mistake: #a8192c;
+
+    --modal-overlay: rgba(20, 14, 6, 0.55);
+    --input-bg: rgba(90, 65, 30, 0.05);
+    --border-color: rgba(90, 65, 30, 0.15);
+
+    --shadow-sm: 0 1px 3px rgba(30, 18, 8, 0.15);
+    --shadow-md: 0 2px 8px rgba(30, 18, 8, 0.18);
+    --shadow-lg: 0 4px 16px rgba(30, 18, 8, 0.22);
 }
 
 /* =========================
@@ -642,22 +692,24 @@ header h1 {
     grid-template-columns: repeat(9, 50px);
     grid-template-rows: repeat(9, 50px);
     gap: 0;
-    background: var(--board-light);
+    /* 板目の木目: 斜めグラデーション+微細ノイズの2層(docs/design-tokens.md) */
+    background-color: var(--board-mid);
     background-image:
         repeating-linear-gradient(
-            90deg,
+            100deg,
             var(--board-light) 0px,
-            var(--board-dark) 1px,
-            var(--board-light) 2px,
-            var(--board-light) 8px
+            var(--board-light) 3px,
+            var(--board-mid) 3px,
+            var(--board-mid) 7px,
+            var(--board-dark) 7px,
+            var(--board-dark) 9px
         ),
-        repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 15px,
-            rgba(139, 69, 19, 0.03) 16px,
-            transparent 17px
-        );
+        radial-gradient(circle at 12% 22%, rgba(255, 255, 255, 0.06) 0px, transparent 3px),
+        radial-gradient(circle at 68% 8%, rgba(0, 0, 0, 0.05) 0px, transparent 2px),
+        radial-gradient(circle at 40% 70%, rgba(255, 255, 255, 0.05) 0px, transparent 4px),
+        radial-gradient(circle at 85% 55%, rgba(0, 0, 0, 0.04) 0px, transparent 3px);
+    background-size: auto, 140px 140px, 90px 90px, 160px 160px, 110px 110px;
+    background-blend-mode: normal, overlay, overlay, overlay, overlay;
     border: 4px solid var(--board-border);
     box-shadow:
         0 6px 24px var(--board-shadow),
