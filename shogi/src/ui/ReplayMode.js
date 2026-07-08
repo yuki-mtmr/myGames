@@ -21,8 +21,9 @@ export function sfenToSavedState(sfen) {
     return {
         board,
         currentPlayer,
-        playerCaptured,
-        cpuCaptured,
+        // game.js/DOMRenderer は持ち駒を文字列配列('歩'等)で扱う
+        playerCaptured: playerCaptured.map(p => p.type ?? p),
+        cpuCaptured: cpuCaptured.map(p => p.type ?? p),
         moveHistory: [],
         positionHistory: [],
         sfenHistory: [sfen],
