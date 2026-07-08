@@ -110,8 +110,10 @@ export function setupReviewPanel({ getGame }) {
         }
         analysis = null;
         graphSvg.innerHTML = '';
+        hide(graphSvg); // 解析前は空のグラフ枠を出さない
         document.addEventListener('keydown', handleKey);
         show(section);
+        setInGameControlsVisible(false);
         renderPosition();
     };
 
@@ -121,6 +123,7 @@ export function setupReviewPanel({ getGame }) {
         renderer = null;
         document.removeEventListener('keydown', handleKey);
         hide(section);
+        setInGameControlsVisible(true);
         clearMoveListDecorations(moveList);
     };
 
@@ -138,10 +141,23 @@ export function setupReviewPanel({ getGame }) {
         setAnalysis(result) {
             if (!state) return;
             analysis = result;
+            show(graphSvg);
             renderGraph(graphSvg, result, state.sfens.length - 1);
             decorateMoveList(moveList, result.judgments);
         },
     };
+}
+
+/** 終局後: 手番表示を検討モードに切り替え、対局専用ボタン(待った/投了)を隠す */
+function setInGameControlsVisible(inGame) {
+    const turnIndicator = document.getElementById('turn-indicator');
+    if (!inGame && turnIndicator) {
+        turnIndicator.textContent = '終局 — 検討モード';
+        turnIndicator.classList.remove('thinking');
+    }
+    for (const id of ['undo-btn', 'resign-btn']) {
+        document.getElementById(id)?.classList.toggle('hidden', !inGame);
+    }
 }
 
 function renderGraph(svg, { evals, judgments }, maxPly) {

@@ -2016,3 +2016,21 @@ header h1 {
 .judgment-mark.severity-inaccuracy { color: var(--accent-gold); }
 .judgment-mark.severity-mistake { color: #d9662e; }
 .judgment-mark.severity-blunder { color: var(--accent-red); }
+
+/* ============================
+   側面パネル(形勢/検討/棋譜を1列に)
+   ============================ */
+
+.side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 300px;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.side-panel .move-history {
+    max-height: 420px;
+    overflow-y: auto;
+}
