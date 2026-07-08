@@ -2034,3 +2034,30 @@ header h1 {
     max-height: 420px;
     overflow-y: auto;
 }
+
+/* ============================
+   感想戦パネルの溢れ修正 + 推定棋力
+   ============================ */
+
+/* max-height を子に伝播させ、リストだけがスクロールするようにする */
+.analysis-content {
+    overflow: hidden;
+}
+
+#analysis-result {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#mistake-list {
+    min-height: 0;
+}
+
+#analysis-ratings {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}

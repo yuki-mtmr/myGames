@@ -6,6 +6,7 @@
  */
 
 import { analyzeGame } from '../analysis/GameAnalyzer.js';
+import { estimateRating } from '../analysis/RatingEstimator.js';
 import { explainMistake } from '../analysis/MoveExplainer.js';
 import { tagPhase, buildTags } from '../training/MistakeTagger.js';
 import { MistakeStore } from '../storage/MistakeStore.js';
@@ -135,6 +136,21 @@ function persistAnalysis(mistakes, { sfens, totalPlies }) {
     }
 }
 
+/** 推定棋力(あなた/CPU)を表示する。1局からの目安である旨を明記 */
+function renderRatings(judgments) {
+    const el = document.getElementById('analysis-ratings');
+    if (!el) return;
+
+    const format = (who, mover) => {
+        const { label, avgDrop, sampleSize } = estimateRating(judgments, mover);
+        if (!label) return `${who}: 判定不能(${sampleSize}手では不足)`;
+        return `${who}: ${label}(平均損失 ${(avgDrop * 100).toFixed(1)}%)`;
+    };
+
+    el.textContent =
+        `推定棋力(この1局の指し手からの目安) — ${format('あなた', 'player')} / ${format('CPU', 'cpu')}`;
+}
+
 function renderProgress(done, total) {
     const progress = document.getElementById('analysis-progress');
     const bar = document.getElementById('analysis-progress-bar');
@@ -164,6 +180,7 @@ function renderResult(result, playerMistakes, onReplayRequest) {
 
     if (playerMistakes.length === 0) {
         summary.textContent = '悪手は検出されませんでした。好局でした!';
+        renderRatings(result.judgments);
         return;
     }
 
@@ -174,6 +191,8 @@ function renderResult(result, playerMistakes, onReplayRequest) {
         .filter(s => counts[s])
         .map(s => `${SEVERITY_LABELS[s].text} ${counts[s]}件`)
         .join(' / ');
+
+    renderRatings(result.judgments);
 
     for (const m of playerMistakes) {
         const { text, mark, className } = SEVERITY_LABELS[m.severity];
