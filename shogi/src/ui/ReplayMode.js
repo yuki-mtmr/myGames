@@ -15,7 +15,7 @@ function show(el) { el?.classList.remove('hidden'); }
 function hide(el) { el?.classList.add('hidden'); }
 
 /** SFEN から ShogiGame 復元用の savedState を組み立てる */
-function sfenToSavedState(sfen) {
+export function sfenToSavedState(sfen) {
     const { board, currentPlayer, playerCaptured, cpuCaptured } =
         SfenConverter.sfenToBoard(sfen);
     return {
