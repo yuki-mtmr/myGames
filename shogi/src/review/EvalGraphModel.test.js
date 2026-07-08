@@ -18,16 +18,17 @@ describe('buildGraphModel', () => {
 
     it('評価値を座標列に変換する(x=手数、y=先手視点評価値)', () => {
         const model = buildGraphModel(EVALS, JUDGMENTS, size);
+        const byPly = (ply) => model.points.find(p => p.ply === ply);
         // x は 0..width を手数で等分
-        expect(model.points[0]).toMatchObject({ ply: 0, x: 0, y: 25 }); // 0 → 中央
-        expect(model.points[4].x).toBe(100);
+        expect(byPly(0)).toMatchObject({ ply: 0, x: 0, y: 25 }); // 0 → 中央
+        expect(byPly(4).x).toBe(100);
         // +300/1000 → 中央から上方向へ 30% (y = 25 - 0.3*25 = 17.5)
-        expect(model.points[1].y).toBeCloseTo(17.5, 5);
+        expect(byPly(1).y).toBeCloseTo(17.5, 5);
     });
 
     it('クランプ値を超える評価値は端に張り付く', () => {
         const model = buildGraphModel(EVALS, JUDGMENTS, size);
-        expect(model.points[4].y).toBe(0); // +5000 → 上端
+        expect(model.points.find(p => p.ply === 4).y).toBe(0); // +5000 → 上端
     });
 
     it('scoreCp null の手は座標列から除外される', () => {
