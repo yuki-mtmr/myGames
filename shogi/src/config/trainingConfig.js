@@ -79,6 +79,21 @@ export const trainingConfig = {
         movetimeMs: 800,
     },
 
+    // 推定棋力: 1手あたりの平均勝率損失から級位/段位を推定する
+    // 独自ヒューリスティック(lichess の ACPL-レーティング関係と
+    // アマ棋力の一般的な悪手頻度感を参考にした目安。運用調整前提)
+    rating: {
+        minMoves: 10, // これ未満の手数では判定しない
+        tiers: [
+            { maxAvgDrop: 0.008, label: '三段以上' },
+            { maxAvgDrop: 0.014, label: '初段〜二段' },
+            { maxAvgDrop: 0.022, label: '1〜3級' },
+            { maxAvgDrop: 0.035, label: '4〜6級' },
+            { maxAvgDrop: 0.055, label: '7〜9級' },
+            { maxAvgDrop: Infinity, label: '10級以下' },
+        ],
+    },
+
     // 通知: 対局中の悪手即時通知(要件2: 初期 ON、設定で OFF 可)
     notifications: {
         liveBlunderAlert: true,
