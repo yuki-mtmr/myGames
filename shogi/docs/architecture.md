@@ -192,3 +192,32 @@ export const trainingConfig = {
 4. `MistakeRecord` の保存(タグは phase のみの最小実装)
 
 v2 以降: 再演モード → タグ拡充+癖認定 → FSRS ドリル → ダッシュボード。
+
+## ダンジョン RPG レイヤ
+
+既存の将棋訓練場(analysis/training/UI)を土台に、対局を「ダンジョン攻略」として
+演出するダンジョン RPG レイヤを追加する全面改装を行う。新レイヤは `src/dungeon/`
+(ダメージ・囲い判定・進行管理などの純粋ドメインロジック)、`src/battle/`
+(Canvas 描画・アニメーション演出)、`src/rpg/`(シーン遷移・施設オーケストレーション)
+の 3 層で構成し、既存の `game.js`・`src/analysis/`・`src/ai/`・`src/storage/` は
+`BattleEventBus` 経由のイベント購読で疎結合に接続する(既存コードの内部ロジックは
+非破壊)。詳細なイベントカタログ・ダメージ/HP モデル・囲い検出仕様・永続化スキーマ
+は「統一決定記録」を正準とする。
+
+```
+┌─ RPG 層(新規) ────────────────────────────────────────┐
+│ src/rpg/     SceneManager(FSM) / BattleDirector / 施設   │
+│ src/battle/  BattleEventBus / ActorAnimationFSM / Canvas 演出 │
+│ src/dungeon/ CastleDetector / DamageModel / 進行・棋力判定  │
+└──────┬──────────────────────────┬────────────────────┘
+       │ (movePlayed/gameEnded 等を emit)  │ (施設パネルとして無改修流用)
+┌──────┴─ 既存: ドメイン層 ───┐ ┌───┴─ 既存: UI/永続化層 ────┐
+│ game.js / src/analysis/     │ │ AnalysisPanel/Dashboard等  │
+│ src/training/                │ │ src/storage/(Store 追加)   │
+└──────────────────────────────┘ └────────────────────────────┘
+```
+
+詳細は以下を参照:
+- `docs/dungeon-rpg-architecture.md` — レイヤ構成・モジュール分割の詳細
+- `docs/dungeon-rpg-data-spec.md` — イベントカタログ・データモデル・永続化スキーマ
+- `docs/dungeon-rpg-roadmap.md` — 実装フェーズとロードマップ
